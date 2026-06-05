@@ -327,7 +327,7 @@ private fun LiveTopBar(
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    config.voiceName,
+                    config.voiceName.cleanTeacherName(),
                     color = Color.White,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
@@ -717,8 +717,10 @@ private fun ListeningPulse(visible: Boolean) {
 @Composable
 private fun StatePill(state: SparState, statusMessage: String) {
     val (text, icon) = when (state) {
-        is SparState.AiThinking -> "Preparing the first move..." to Icons.Default.Pending
-        is SparState.AiEvaluating -> "Reading your reasoning..." to Icons.Default.Psychology
+        is SparState.AiThinking -> statusMessage
+            .ifBlank { "Preparing the first move..." } to Icons.Default.Pending
+        is SparState.AiEvaluating -> statusMessage
+            .ifBlank { "Reading your reasoning..." } to Icons.Default.Psychology
         is SparState.StudentListening -> "Your turn. Tap and speak." to Icons.Default.Mic
         is SparState.StudentSpeaking -> "Listening closely..." to Icons.Default.GraphicEq
         is SparState.AiSpeaking -> {
@@ -795,6 +797,9 @@ private fun teacherPortrait(voiceId: String): Int = when (voiceId) {
     "P0TQBmxaqqw6qfDmK2xb" -> R.drawable.teacher_simran
     else -> R.drawable.teacher_manav
 }
+
+private fun String.cleanTeacherName(): String =
+    replace(Regex("\\s*\\([^)]*\\)\\s*$"), "").trim()
 
 @Composable
 private fun TextComposerDialog(

@@ -40,8 +40,11 @@ class SetupViewModel @Inject constructor(
     private val _selectedVoice = MutableStateFlow(Teachers.options.first().voiceId)
     val selectedVoice: StateFlow<String> = _selectedVoice.asStateFlow()
 
-    private val _selectedVoiceName = MutableStateFlow(Teachers.options.first().displayName)
+    private val _selectedVoiceName = MutableStateFlow(Teachers.options.first().name)
     val selectedVoiceName: StateFlow<String> = _selectedVoiceName.asStateFlow()
+
+    private val _studentFirstName = MutableStateFlow("")
+    val studentFirstName: StateFlow<String> = _studentFirstName.asStateFlow()
 
     private var previewJob: Job? = null
 
@@ -50,8 +53,10 @@ class SetupViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             authRepository.loggedInUserId.collect { userId ->
-                val target = userId?.let { authRepository.getCurrentUser(it)?.examTarget }
+                val user = userId?.let { authRepository.getCurrentUser(it) }
+                val target = user?.examTarget
                     ?: Curriculum.defaultTarget
+                _studentFirstName.value = user?.firstName.orEmpty()
                 _examTarget.value = target
                 if (_selectedSubject.value !in subjects) {
                     _selectedSubject.value = null

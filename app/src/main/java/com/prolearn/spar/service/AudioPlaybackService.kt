@@ -29,6 +29,7 @@ class AudioPlaybackService @Inject constructor(
     fun playAudio(
         bytes: ByteArray,
         onLevelUpdate: (Float) -> Unit,
+        onStart: (durationMs: Int) -> Unit = {},
         onComplete: () -> Unit
     ) {
         Log.d(TAG, "playAudio() — ${bytes.size} bytes")
@@ -66,6 +67,7 @@ class AudioPlaybackService @Inject constructor(
                 }
                 start()
                 Log.d(TAG, "MediaPlayer started, duration=${duration}ms")
+                onStart(duration)
             }
 
             // Simulate waveform levels on IO, but dispatch update on Main
@@ -88,29 +90,29 @@ class AudioPlaybackService @Inject constructor(
     fun fallbackSpeak(
         text: String,
         languageTag: String = "en-IN",
+        onStart: (durationMs: Int) -> Unit = {},
         onComplete: () -> Unit
     ) {
         Log.d(TAG, "fallbackSpeak() — using Android TTS language=$languageTag")
         releaseTts()
-        var ttsReady = false
+        val estimatedMs = (text.split(" ").size * 350L).coerceAtLeast(1500L)
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                ttsReady = true
                 tts?.language = Locale.forLanguageTag(languageTag)
                 tts?.setSpeechRate(0.9f)
                 tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "fallback_tts")
+                onStart(estimatedMs.toInt())
                 Log.d(TAG, "TTS speaking: '${text.take(40)}...'")
+                scope.launch(Dispatchers.IO) {
+                    Log.d(TAG, "TTS estimated duration: ${estimatedMs}ms")
+                    delay(estimatedMs)
+                    releaseTts()
+                    scope.launch { onComplete() }
+                }
             } else {
                 Log.e(TAG, "TTS init failed with status=$status")
+                scope.launch { onComplete() }
             }
-        }
-        // Estimate duration and complete — TTS doesn't give us a clean completion callback easily
-        scope.launch(Dispatchers.IO) {
-            val estimatedMs = (text.split(" ").size * 350L).coerceAtLeast(1500L)
-            Log.d(TAG, "TTS estimated duration: ${estimatedMs}ms")
-            delay(estimatedMs)
-            releaseTts()
-            scope.launch { onComplete() }
         }
     }
 

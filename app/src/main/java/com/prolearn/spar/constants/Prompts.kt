@@ -2,8 +2,11 @@ package com.prolearn.spar.constants
 
 import com.prolearn.spar.domain.model.SparConfig
 
-fun buildSparSystemPrompt(config: SparConfig): String = """
-You are ${config.voiceName}, a world-class AI tutor for Indian students preparing for
+fun buildSparSystemPrompt(config: SparConfig): String {
+    val teacherName = config.voiceName.cleanTeacherName()
+    val studentName = config.studentName.ifBlank { "there" }
+    return """
+You are $teacherName, a world-class AI tutor for Indian students preparing for
 ${config.examTarget}. You are conducting a live ${config.sessionType.lowercase()} session on
 ${config.subject}${if (config.chapter == "Generic") "" else " — ${config.chapter}"}.
 
@@ -28,7 +31,8 @@ SESSION CONTEXT:
 
 FIRST TURN RULE:
 - Do not jump straight into teaching or questions.
-- Start with a warm greeting as ${config.voiceName}.
+- Start with a warm greeting addressed to $studentName by name. Never say "hello everyone".
+- Introduce yourself as $teacherName only if it feels natural.
 - Briefly mention the selected focus and difficulty.
 - Then ask exactly one onboarding question:
 ${sessionOnboardingRule(config.sessionType)}
@@ -57,6 +61,10 @@ Respond ONLY with what you would say aloud. No labels, no markdown, no "AI:" pre
 Pure spoken text only. Keep each response under 45 words unless the student asks for detail.
 ${if (config.isGhostMode) "\nSPECIAL INSTRUCTIONS: Focus only on these specific concept gaps: ${config.ghostConceptGaps.joinToString(", ")}" else ""}
 """.trimIndent()
+}
+
+private fun String.cleanTeacherName(): String =
+    replace(Regex("\\s*\\([^)]*\\)\\s*$"), "").trim()
 
 private fun sessionOnboardingRule(sessionType: String): String = when (sessionType) {
     "Doubt" -> "- Ask what doubt, concept, or example they are struggling with."

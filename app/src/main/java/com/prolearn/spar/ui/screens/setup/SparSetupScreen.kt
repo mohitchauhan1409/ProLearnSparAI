@@ -103,6 +103,7 @@ fun SparSetupScreen(
     val selectedDifficulty by viewModel.selectedDifficulty.collectAsState()
     val selectedVoice by viewModel.selectedVoice.collectAsState()
     val selectedVoiceName by viewModel.selectedVoiceName.collectAsState()
+    val studentFirstName by viewModel.studentFirstName.collectAsState()
     val previewingVoiceId by viewModel.previewingVoiceId.collectAsState()
 
     var selectedSessionType by remember { mutableStateOf("Learning") }
@@ -203,7 +204,7 @@ fun SparSetupScreen(
                                 onSelect = {
                                     viewModel.selectVoice(
                                         teacher.voiceId,
-                                        teacher.displayName
+                                        teacher.name
                                     )
                                 },
                                 onPreview = { viewModel.previewTeacher(teacher) }
@@ -241,6 +242,7 @@ fun SparSetupScreen(
                         examTarget = examTarget,
                         voiceId = selectedVoice,
                         voiceName = selectedVoiceName,
+                        studentName = studentFirstName,
                         questionCount = 12,
                         durationMinutes = 10,
                         isGhostMode = false

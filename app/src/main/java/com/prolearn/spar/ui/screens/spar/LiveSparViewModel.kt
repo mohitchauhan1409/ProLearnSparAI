@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.util.ArrayDeque
 import javax.inject.Inject
@@ -95,6 +96,9 @@ class LiveSparViewModel @Inject constructor(
     private var completionStarted = false
     private var pendingStudyMaterial: PendingStudyMaterial? = null
     private val queuedInputs = ArrayDeque<QueuedStudentInput>()
+    private var tutorOutputPreparing = false
+    private var streamingMessageJob: Job? = null
+    private var streamingMessageId: Long? = null
 
     // ─── Session Lifecycle ────────────────────────────────────────────────────
 
@@ -121,7 +125,7 @@ class LiveSparViewModel @Inject constructor(
 
             val startMsg = listOf(
                 Message(
-                    text = "Open the live session now. Start with the required warm greeting and conversational onboarding for this ${sessionConfig?.sessionType ?: "Learning"} session. Do not teach content yet.",
+                    text = "Open the live session now. Greet ${sessionConfig?.studentName?.ifBlank { "the student" } ?: "the student"} by name, then do the required conversational onboarding for this ${sessionConfig?.sessionType ?: "Learning"} session. Do not teach content yet. Never say hello everyone.",
                     role = "user"
                 )
             )
@@ -138,7 +142,6 @@ class LiveSparViewModel @Inject constructor(
                             _state.value = SparState.Error("Got empty response. Tap to retry.")
                         }
                         else -> {
-                            addAiMessage(response)
                             speakText(response)
                         }
                     }
@@ -379,7 +382,6 @@ class LiveSparViewModel @Inject constructor(
                 .onSuccess { response ->
                     Log.i(TAG, "Retry OK: '${response.take(80)}'")
                     if (response.isNotBlank()) {
-                        addAiMessage(response)
                         speakText(response)
                     } else {
                         _state.value = SparState.Error("Still getting empty response. Check API key.")
@@ -436,7 +438,6 @@ class LiveSparViewModel @Inject constructor(
                             _state.value = SparState.Error("Attachment response was empty. Tap to retry.")
                         }
                         else -> {
-                            addAiMessage(response)
                             speakText(response)
                         }
                     }
@@ -450,7 +451,7 @@ class LiveSparViewModel @Inject constructor(
     }
 
     private fun queueIfTutorSpeaking(buildInput: (Long) -> QueuedStudentInput): Boolean {
-        if (_state.value !is SparState.AiSpeaking) return false
+        if (_state.value !is SparState.AiSpeaking && !tutorOutputPreparing) return false
         val id = System.currentTimeMillis()
         val input = buildInput(id)
         queuedInputs.add(input)
@@ -494,7 +495,6 @@ class LiveSparViewModel @Inject constructor(
                             _state.value = SparState.Error("Response was empty. Tap to retry.")
                         }
                         else -> {
-                            addAiMessage(response)
                             speakText(response)
                         }
                     }
@@ -514,7 +514,6 @@ class LiveSparViewModel @Inject constructor(
             else -> material.kind
         }
         val message = "Got it. What do you want to learn from this $label? You can ask for a summary, a doubt, an explanation, or a specific timestamp/page/question."
-        addAiMessage(message)
         viewModelScope.launch {
             speakText(message)
         }
@@ -597,7 +596,6 @@ class LiveSparViewModel @Inject constructor(
             }
             else -> {
                 if (countQuestion) questionCount++
-                addAiMessage(response)
                 speakText(response)
             }
         }
@@ -668,8 +666,9 @@ class LiveSparViewModel @Inject constructor(
     private suspend fun speakText(text: String) {
         val voiceId = sessionConfig?.voiceId ?: VoiceIds.ARIA
         Log.i(TAG, "speakText() voiceId=$voiceId '${text.take(60)}'")
-        _state.value = SparState.AiSpeaking(text)
-        setStatus("AI speaking...")
+        tutorOutputPreparing = true
+        _state.value = SparState.AiThinking
+        setStatus("Preparing voice...")
         _audioLevel.value = 0f
 
         elevenLabsApi.synthesize(text, voiceId) { bytes ->
@@ -677,8 +676,17 @@ class LiveSparViewModel @Inject constructor(
             audioPlayer.playAudio(
                 bytes,
                 onLevelUpdate = { _audioLevel.value = it },
+                onStart = { durationMs ->
+                    tutorOutputPreparing = false
+                    _state.value = SparState.AiSpeaking(text)
+                    setStatus("AI speaking...")
+                    startStreamingAiMessage(text, durationMs)
+                },
                 onComplete = {
                     Log.d(TAG, "Playback done → StudentListening")
+                    tutorOutputPreparing = false
+                    streamingMessageJob?.cancel()
+                    finishStreamingAiMessage(text)
                     _audioLevel.value = 0f
                     _state.value = SparState.StudentListening
                     setStatus("Your turn — tap mic to answer")
@@ -689,14 +697,27 @@ class LiveSparViewModel @Inject constructor(
         }.onFailure { e ->
             Log.e(TAG, "ElevenLabs failed (${e.message}), using device TTS")
             setStatus("Using device voice...")
-            audioPlayer.fallbackSpeak(text, teacherLanguageTag(voiceId)) {
-                Log.d(TAG, "Fallback TTS done → StudentListening")
-                _audioLevel.value = 0f
-                _state.value = SparState.StudentListening
-                setStatus("Your turn — tap mic to answer")
-                haptics.tapLight()
-                processNextQueuedInput()
-            }
+            audioPlayer.fallbackSpeak(
+                text = text,
+                languageTag = teacherLanguageTag(voiceId),
+                onStart = { durationMs ->
+                    tutorOutputPreparing = false
+                    _state.value = SparState.AiSpeaking(text)
+                    setStatus("AI speaking...")
+                    startStreamingAiMessage(text, durationMs)
+                },
+                onComplete = {
+                    Log.d(TAG, "Fallback TTS done → StudentListening")
+                    tutorOutputPreparing = false
+                    streamingMessageJob?.cancel()
+                    finishStreamingAiMessage(text)
+                    _audioLevel.value = 0f
+                    _state.value = SparState.StudentListening
+                    setStatus("Your turn — tap mic to answer")
+                    haptics.tapLight()
+                    processNextQueuedInput()
+                }
+            )
         }
     }
 
@@ -713,6 +734,9 @@ class LiveSparViewModel @Inject constructor(
         completionStarted = true
         Log.i(TAG, "completeSession() q=$questionCount answers=$totalAnswers hints=$hintsUsed")
         isTimerRunning = false
+        tutorOutputPreparing = false
+        streamingMessageJob?.cancel()
+        streamingMessageId = null
         _isRecognizerActive.value = false
         speechService.destroy()
         audioPlayer.stop()
@@ -784,6 +808,48 @@ class LiveSparViewModel @Inject constructor(
         Log.d(TAG, "addAiMessage() total=${_messages.value.size} isHint=$isHint")
     }
 
+    private fun startStreamingAiMessage(text: String, durationMs: Int) {
+        streamingMessageJob?.cancel()
+        val messageId = System.currentTimeMillis()
+        streamingMessageId = messageId
+        _messages.value = _messages.value + Message("", "ai", timestamp = messageId)
+
+        val tokens = Regex("\\S+\\s*").findAll(text).map { it.value }.toList()
+        if (tokens.isEmpty()) {
+            finishStreamingAiMessage(text)
+            return
+        }
+
+        val perWordDelay = (durationMs.toLong() / tokens.size)
+            .coerceIn(65L, 450L)
+
+        streamingMessageJob = viewModelScope.launch {
+            val visibleText = StringBuilder()
+            tokens.forEach { token ->
+                visibleText.append(token)
+                updateAiMessage(messageId, visibleText.toString())
+                delay(perWordDelay)
+            }
+            updateAiMessage(messageId, text)
+        }
+    }
+
+    private fun finishStreamingAiMessage(text: String) {
+        val messageId = streamingMessageId
+        if (messageId == null) {
+            addAiMessage(text)
+            return
+        }
+        updateAiMessage(messageId, text)
+        streamingMessageId = null
+    }
+
+    private fun updateAiMessage(id: Long, text: String) {
+        _messages.value = _messages.value.map { message ->
+            if (message.role == "ai" && message.timestamp == id) message.copy(text = text) else message
+        }
+    }
+
     private fun addUserMessage(text: String) {
         _messages.value = _messages.value + Message(text, "user")
         Log.d(TAG, "addUserMessage() total=${_messages.value.size}")
@@ -818,6 +884,8 @@ class LiveSparViewModel @Inject constructor(
         super.onCleared()
         Log.d(TAG, "onCleared()")
         isTimerRunning = false
+        tutorOutputPreparing = false
+        streamingMessageJob?.cancel()
         _isRecognizerActive.value = false
         speechService.destroy()
         audioPlayer.stop()

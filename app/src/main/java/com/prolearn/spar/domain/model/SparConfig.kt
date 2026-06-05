@@ -13,6 +13,7 @@ data class SparConfig(
     val examTarget: String,
     val voiceId: String,
     val voiceName: String,
+    val studentName: String = "",
     val questionCount: Int,
     val durationMinutes: Int,
     val isGhostMode: Boolean = false,
