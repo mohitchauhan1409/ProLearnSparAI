@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -101,21 +102,17 @@ fun SessionReportScreen(
 
     val report = remember(readySession) { readySession.toReport() }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(Page, Color(0xFFFFFFFF), Color(0xFFF1F7F3)),
-                    start = Offset.Zero,
-                    end = Offset(800f, 1400f)
-                )
-            )
-    ) {
-        AmbientWash()
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(Page, Color(0xFFFFFFFF), Color(0xFFF1F7F3)),
+                        start = Offset.Zero,
+                        end = Offset(800f, 1400f)
+                    )
+                )
                 .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 16.dp)
@@ -124,22 +121,23 @@ fun SessionReportScreen(
                 ReportHero(session = readySession, report = report)
             }
 
-            Spacer(Modifier.height(14.dp))
-
-            AnimatedSection(index = 1) {
-                MetricStrip(session = readySession, report = report)
-            }
-
             Spacer(Modifier.height(16.dp))
 
-            AnimatedSection(index = 2) {
+            AnimatedSection(index = 1) {
                 InsightCard(report = report)
             }
 
-            Spacer(Modifier.height(16.dp))
+            if (report.flashcards.isNotEmpty()) {
+                Spacer(Modifier.height(18.dp))
+                AnimatedSection(index = 2) {
+                    FlashcardDeckSection(cards = report.flashcards)
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
 
             AnimatedSection(index = 3) {
-                HighlightsGrid(report = report)
+                MetricStrip(session = readySession, report = report)
             }
 
             if (readySession.conceptScores.isNotEmpty()) {
@@ -149,24 +147,33 @@ fun SessionReportScreen(
                 }
             }
 
-            if (report.flashcards.isNotEmpty()) {
+            if (report.nextSteps.isNotEmpty()) {
                 Spacer(Modifier.height(18.dp))
                 AnimatedSection(index = 5) {
-                    FlashcardDeckSection(cards = report.flashcards)
+                    NextMovesSection(report = report)
                 }
             }
 
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(104.dp))
+        }
 
-            AnimatedSection(index = 6) {
-                ProLearnButton(
-                    text = "Back to home",
-                    onClick = onNavigateToHome,
-                    backgroundColor = Ink
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, Page.copy(alpha = 0.96f), Page)
+                    )
                 )
-            }
-
-            Spacer(Modifier.height(18.dp))
+                .navigationBarsPadding()
+                .padding(horizontal = 18.dp, vertical = 14.dp)
+        ) {
+            ProLearnButton(
+                text = "Back to home",
+                onClick = onNavigateToHome,
+                backgroundColor = Ink
+            )
         }
     }
 }
