@@ -3,6 +3,8 @@ package com.prolearn.spar.data.repository
 import com.prolearn.spar.data.local.SessionDataStore
 import com.prolearn.spar.data.remote.GeminiApi
 import com.prolearn.spar.data.remote.VoiceIds
+import com.prolearn.spar.data.remote.YoutubeTranscript
+import com.prolearn.spar.data.remote.YoutubeTranscriptApi
 import com.prolearn.spar.domain.model.Message
 import com.prolearn.spar.domain.model.Session
 import com.prolearn.spar.domain.model.SessionAnalysis
@@ -18,6 +20,7 @@ import javax.inject.Singleton
 @Singleton
 class SparRepository @Inject constructor(
     private val geminiApi: GeminiApi,
+    private val youtubeTranscriptApi: YoutubeTranscriptApi,
     private val sessionDataStore: SessionDataStore
 ) {
     val hasLaunched: Flow<Boolean> = sessionDataStore.hasLaunched
@@ -31,6 +34,20 @@ class SparRepository @Inject constructor(
 
     suspend fun sendMessage(messages: List<Message>, systemPrompt: String): Result<String> {
         return geminiApi.sendMessage(messages, systemPrompt)
+    }
+
+    suspend fun sendAttachmentMessage(
+        history: List<Message>,
+        systemPrompt: String,
+        prompt: String,
+        mimeType: String,
+        bytes: ByteArray
+    ): Result<String> {
+        return geminiApi.sendAttachmentMessage(history, systemPrompt, prompt, mimeType, bytes)
+    }
+
+    suspend fun fetchYoutubeTranscript(url: String): Result<YoutubeTranscript> {
+        return youtubeTranscriptApi.fetchTranscript(url)
     }
 
     suspend fun getHint(question: String): Result<String> {

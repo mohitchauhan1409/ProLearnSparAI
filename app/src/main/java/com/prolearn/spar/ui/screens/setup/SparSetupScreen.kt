@@ -235,6 +235,7 @@ fun SparSetupScreen(
                     val config = SparConfig(
                         subject = selectedSubject ?: return@ProLearnButton,
                         chapter = selectedChapter ?: return@ProLearnButton,
+                        sessionType = selectedSessionType,
                         concepts = viewModel.getConcepts(),
                         difficulty = selectedDifficulty,
                         examTarget = examTarget,

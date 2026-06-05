@@ -1,30 +1,39 @@
 package com.prolearn.spar.ui.screens.spar
 
 import android.Manifest
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -32,14 +41,22 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.PlayCircleFilled
 import androidx.compose.material.icons.filled.Pending
 import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.foundation.layout.offset
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -51,23 +68,41 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
+import com.prolearn.spar.R
 import com.prolearn.spar.domain.model.Message
 import com.prolearn.spar.domain.model.SparConfig
 import com.prolearn.spar.domain.model.SparState
-import com.prolearn.spar.ui.components.spar.MessageBubble
 import com.prolearn.spar.ui.components.spar.VoiceWaveform
-import com.prolearn.spar.ui.theme.ProLearnColors
 import kotlinx.coroutines.delay
+
+private val DeepInk = Color(0xFF08110F)
+private val Ink = Color(0xFF151616)
+private val Moss = Color(0xFF4E7D68)
+private val MintGlow = Color(0xFFEAF6D8)
+private val SkyMist = Color(0xFFEAF3FF)
+private val BlushMist = Color(0xFFFFEFF3)
+private val Glass = Color(0x1AFFFFFF)
+private val GlassStrong = Color(0x2BFFFFFF)
+private val GlassStroke = Color(0x4DFFFFFF)
+private val SoftText = Color(0xFFDCE6DD)
+private val MutedText = Color(0xFF9DAAA1)
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -76,6 +111,7 @@ fun LiveSparScreen(
     onNavigateToReport: () -> Unit,
     viewModel: LiveSparViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val state by viewModel.state.collectAsState()
     val messages by viewModel.messages.collectAsState()
     val audioLevel by viewModel.audioLevel.collectAsState()
@@ -85,446 +121,631 @@ fun LiveSparScreen(
     val isRecognizerActive by viewModel.isRecognizerActive.collectAsState()
 
     val micPermission = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
+    var showTypeDialog by remember { mutableStateOf(false) }
+    var showYoutubeDialog by remember { mutableStateOf(false) }
 
-    // Start session once
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        val bytes = context.readUriBytes(uri) ?: return@rememberLauncherForActivityResult
+        viewModel.submitImage(
+            name = context.displayName(uri) ?: "study-image",
+            mimeType = context.contentResolver.getType(uri) ?: "image/jpeg",
+            bytes = bytes
+        )
+    }
+    val documentPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        val bytes = context.readUriBytes(uri) ?: return@rememberLauncherForActivityResult
+        viewModel.submitDocument(
+            name = context.displayName(uri) ?: "study-document.pdf",
+            mimeType = context.contentResolver.getType(uri) ?: "application/pdf",
+            bytes = bytes
+        )
+    }
+
     LaunchedEffect(Unit) {
         viewModel.startSession(config)
     }
 
-    // Navigate when complete
     LaunchedEffect(state) {
         if (state == SparState.SessionComplete) {
-            delay(800)
+            delay(120)
             onNavigateToReport()
         }
     }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "sparTransitions")
-    val pulseRingScale by infiniteTransition.animateFloat(
-        initialValue = 1f, targetValue = 1.5f,
-        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Restart),
-        label = "pulseRingScale"
-    )
-    val pulseRingAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.25f, targetValue = 0f,
-        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Restart),
-        label = "pulseRingAlpha"
-    )
+    val listState = rememberLazyListState()
+    LaunchedEffect(messages.size, state, partialTranscript) {
+        if (messages.isNotEmpty() || partialTranscript.isNotBlank()) {
+            listState.animateScrollToItem(0)
+        }
+    }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ProLearnColors.White)
-            .safeDrawingPadding()
-    ) {
-        // ── Top Bar ──────────────────────────────────────────────────────────
-        TopBar(
-            config = config,
-            timerFormatted = timerFormatted,
-            questionCounter = viewModel.questionCounter,
-            hintsRemaining = viewModel.hintsRemaining,
-            onHintClick = { viewModel.requestHint() }
-        )
-
-        // ── Message List ─────────────────────────────────────────────────────
-        val listState = rememberLazyListState()
-        LaunchedEffect(messages.size, state) {
-            if (messages.isNotEmpty()) {
-                listState.animateScrollToItem(0)
-            }
-        }
-
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp),
-            reverseLayout = true,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            // Partial transcript bubble (live, while user speaks)
-            if (partialTranscript.isNotBlank()) {
-                item(key = "partial") {
-                    PartialTranscriptBubble(text = partialTranscript)
-                }
-            }
-
-            // Typing indicator when AI is thinking/evaluating
-            if (state == SparState.AiThinking || state == SparState.AiEvaluating) {
-                item(key = "typing") {
-                    TypingIndicator()
-                }
-            }
-
-            items(
-                items = messages.reversed(),
-                key = { msg -> "${msg.timestamp}_${msg.role}" }
-            ) { message ->
-                MessageBubble(message)
-            }
-        }
-
-        // ── Permission Denied Card ───────────────────────────────────────────
-        if (!micPermission.status.isGranted) {
-            MicPermissionCard(
-                showRationale = micPermission.status.shouldShowRationale,
-                onRequestPermission = { micPermission.launchPermissionRequest() }
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(DeepInk, Color(0xFF10231D), Color(0xFF161915)),
+                    start = Offset.Zero,
+                    end = Offset(900f, 1500f)
+                )
             )
-        } else {
-            // ── Status Chip ──────────────────────────────────────────────────
-            AnimatedVisibility(
-                visible = statusMessage.isNotBlank() || isActiveState(state),
-                enter = fadeIn() + slideInVertically { it },
-                exit = fadeOut()
+    ) {
+        AmbientGlow()
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
+            LiveTopBar(
+                config = config,
+                timerFormatted = timerFormatted,
+                questionCounter = viewModel.questionCounter,
+                onEndSession = { viewModel.endSession() }
+            )
+
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                reverseLayout = true,
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 232.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                StateChipRow(state = state, statusMessage = statusMessage)
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            // ── Error Retry Row ──────────────────────────────────────────────
-            if (state is SparState.Error) {
-                val err = state as SparState.Error
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(100.dp))
-                            .background(ProLearnColors.ErrorSurface)
-                            .border(1.dp, ProLearnColors.Error.copy(alpha = 0.3f), RoundedCornerShape(100.dp))
-                            .clickable { viewModel.retryConnection() }
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            "${err.message} · Tap to retry",
-                            fontSize = 12.sp,
-                            color = ProLearnColors.Error
-                        )
+                if (partialTranscript.isNotBlank()) {
+                    item(key = "partial") {
+                        PartialTranscriptBubble(text = partialTranscript)
                     }
                 }
-                Spacer(Modifier.height(8.dp))
-            }
 
-            // ── Waveform ─────────────────────────────────────────────────────
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(44.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                VoiceWaveform(
-                    audioLevel = audioLevel,
-                    isActive = state is SparState.AiSpeaking || state is SparState.StudentSpeaking
+                if (state == SparState.AiThinking || state == SparState.AiEvaluating) {
+                    item(key = "typing") {
+                        TutorThinkingCard(config = config)
+                    }
+                }
+
+                items(
+                    items = messages.reversed(),
+                    key = { msg -> "${msg.timestamp}_${msg.role}" }
+                ) { message ->
+                    GlassMessageBubble(message = message, config = config)
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, DeepInk.copy(alpha = 0.92f), DeepInk)
+                    )
                 )
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            // ── Mic Button ───────────────────────────────────────────────────
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 40.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                val isSpeaking = state == SparState.StudentSpeaking || state == SparState.StudentListening
-                val canTap = state == SparState.StudentListening ||
-                        state == SparState.StudentSpeaking ||
-                        state == SparState.Idle ||
-                        state is SparState.Error
-                // Pulse ring (only when actively listening)
-                if (isSpeaking) {
-                    Box(
-                        modifier = Modifier
-                            .size(88.dp)
-                            .scale(pulseRingScale)
-                            .clip(CircleShape)
-                            .background(ProLearnColors.Black.copy(alpha = pulseRingAlpha))
-                    )
-                }
-
-                // Mic button
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
-                        .background(
-                            when {
-                                isSpeaking -> ProLearnColors.Black
-                                !canTap -> ProLearnColors.Disabled
-                                else -> ProLearnColors.White
-                            }
-                        )
-                        .border(
-                            width = if (canTap && !isSpeaking) 1.5.dp else 0.dp,
-                            color = ProLearnColors.Black,
-                            shape = CircleShape
-                        )
-                        .then(
-                            if (canTap) Modifier.clickable {
-                                // Use isRecognizerActive — not state — to decide start vs stop
-                                if (isRecognizerActive) {
-                                    viewModel.stopListening()
-                                } else {
-                                    viewModel.startListening()
-                                }
-                            } else Modifier
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isRecognizerActive) Icons.Default.MicOff else Icons.Default.Mic,
-                        contentDescription = if (isRecognizerActive) "Stop listening" else "Start speaking",
-                        tint = when {
-                            isSpeaking -> ProLearnColors.White
-                            !canTap -> ProLearnColors.Muted
-                            else -> ProLearnColors.Black
-                        },
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            if (!micPermission.status.isGranted) {
+                MicPermissionCard(
+                    showRationale = micPermission.status.shouldShowRationale,
+                    onRequestPermission = { micPermission.launchPermissionRequest() }
+                )
+            } else {
+                TutorControlDock(
+                    state = state,
+                    statusMessage = statusMessage,
+                    audioLevel = audioLevel,
+                    isRecognizerActive = isRecognizerActive,
+                    onType = { showTypeDialog = true },
+                    onPickImage = { imagePicker.launch("image/*") },
+                    onPickDocument = { documentPicker.launch(arrayOf("application/pdf")) },
+                    onYoutube = { showYoutubeDialog = true },
+                    onStartListening = { viewModel.startListening() },
+                    onStopListening = { viewModel.stopListening() },
+                    onRetry = { viewModel.retryConnection() }
+                )
             }
         }
     }
+
+    TextComposerDialog(
+        visible = showTypeDialog,
+        title = "Type to tutor",
+        placeholder = "Ask anything, paste a question, or explain your doubt...",
+        action = "Send",
+        onDismiss = { showTypeDialog = false },
+        onSubmit = {
+            showTypeDialog = false
+            viewModel.submitTypedMessage(it)
+        }
+    )
+    TextComposerDialog(
+        visible = showYoutubeDialog,
+        title = "Study YouTube video",
+        placeholder = "Paste YouTube link, topic, or timestamp...",
+        action = "Study",
+        onDismiss = { showYoutubeDialog = false },
+        onSubmit = {
+            showYoutubeDialog = false
+            viewModel.submitYoutubeLink(it)
+        }
+    )
 }
 
-// ── Top Bar ──────────────────────────────────────────────────────────────────
+@Composable
+private fun AmbientGlow() {
+    Box(
+        Modifier
+            .size(260.dp)
+            .offset(x = (-96).dp, y = 88.dp)
+            .clip(CircleShape)
+            .background(MintGlow.copy(alpha = 0.12f))
+    )
+    Box(
+        Modifier
+            .size(230.dp)
+            .offset(x = 238.dp, y = 22.dp)
+            .clip(CircleShape)
+            .background(SkyMist.copy(alpha = 0.12f))
+    )
+    Box(
+        Modifier
+            .size(190.dp)
+            .offset(x = 252.dp, y = 520.dp)
+            .clip(CircleShape)
+            .background(BlushMist.copy(alpha = 0.09f))
+    )
+}
 
 @Composable
-private fun TopBar(
+private fun LiveTopBar(
     config: SparConfig,
     timerFormatted: String,
     questionCounter: String,
-    hintsRemaining: Int,
-    onHintClick: () -> Unit
+    onEndSession: () -> Unit
 ) {
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Subject · Chapter pill
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Image(
+                painter = painterResource(id = teacherPortrait(config.voiceId)),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .border(1.dp, MintGlow.copy(alpha = 0.5f), CircleShape)
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    config.voiceName,
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    "${config.sessionType} · ${config.difficulty} · $timerFormatted",
+                    color = MutedText,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(100.dp))
-                    .background(ProLearnColors.Surface)
-                    .border(1.dp, ProLearnColors.Border, RoundedCornerShape(100.dp))
-                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                    .background(Color(0xFFFFE1E1).copy(alpha = 0.13f))
+                    .border(1.dp, Color(0xFFFFB2B2).copy(alpha = 0.34f), RoundedCornerShape(100.dp))
+                    .clickable { onEndSession() }
+                    .padding(horizontal = 11.dp, vertical = 7.dp)
             ) {
-                Text(
-                    "${config.subject} · ${config.chapter}",
-                    fontSize = 11.sp,
-                    color = ProLearnColors.Black,
-                    maxLines = 1
-                )
-            }
-
-            Spacer(Modifier.weight(1f))
-
-            // Timer
-            Text(
-                timerFormatted,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                color = ProLearnColors.Black
-            )
-
-            Spacer(Modifier.weight(1f))
-
-            // Question counter + hint button
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(100.dp))
-                        .background(ProLearnColors.Surface)
-                        .border(1.dp, ProLearnColors.Border, RoundedCornerShape(100.dp))
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                ) {
-                    Text(questionCounter, fontSize = 11.sp, color = ProLearnColors.Black)
-                }
-
-                Spacer(Modifier.width(8.dp))
-
-                // Hint button
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (hintsRemaining > 0) ProLearnColors.Surface
-                            else ProLearnColors.Disabled
-                        )
-                        .border(1.dp, ProLearnColors.Border, CircleShape)
-                        .then(
-                            if (hintsRemaining > 0) Modifier.clickable { onHintClick() }
-                            else Modifier
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Close, null, tint = Color(0xFFFFD7D7), modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(4.dp))
                     Text(
-                        "?",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (hintsRemaining > 0) ProLearnColors.Black else ProLearnColors.Muted
-                    )
-                }
-
-                // Hint count badge
-                if (hintsRemaining > 0) {
-                    Text(
-                        "$hintsRemaining",
-                        fontSize = 9.sp,
-                        color = ProLearnColors.Muted,
-                        modifier = Modifier.padding(start = 3.dp)
+                        "End",
+                        color = Color(0xFFFFD7D7),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
         }
 
-        // Thin divider
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(ProLearnColors.Border)
+        Spacer(Modifier.height(12.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MetaChip(Icons.Default.School, config.subject)
+            MetaChip(Icons.Default.AutoAwesome, if (config.chapter == "Generic") "Open chapter" else config.chapter)
+            MetaChip(Icons.Default.GraphicEq, questionCounter)
+        }
+    }
+}
+
+@Composable
+private fun MetaChip(icon: ImageVector, label: String) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(100.dp))
+            .background(Glass)
+            .border(1.dp, GlassStroke, RoundedCornerShape(100.dp))
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = MintGlow, modifier = Modifier.size(13.dp))
+        Spacer(Modifier.width(5.dp))
+        Text(
+            label,
+            color = SoftText,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
 
-// ── State Chip Row ────────────────────────────────────────────────────────────
-
-private fun isActiveState(state: SparState) = state is SparState.AiThinking ||
-        state is SparState.AiEvaluating ||
-        state is SparState.StudentListening ||
-        state is SparState.AiSpeaking
-
 @Composable
-private fun StateChipRow(state: SparState, statusMessage: String) {
-    val (text, icon) = when (state) {
-        is SparState.AiThinking -> "Thinking..." to Icons.Default.Pending
-        is SparState.AiEvaluating -> "Evaluating your answer..." to Icons.Default.Psychology
-        is SparState.StudentListening -> "Listening — tap mic to speak" to Icons.Default.Mic
-        is SparState.AiSpeaking -> "AI speaking" to Icons.Default.Mic
-        else -> if (statusMessage.isNotBlank()) statusMessage to Icons.Default.Pending
-        else return
+private fun GlassMessageBubble(message: Message, config: SparConfig) {
+    val isQueued = message.role == "queued"
+    val isUser = message.role == "user" || isQueued
+    val bubbleShape = if (isUser) {
+        RoundedCornerShape(22.dp, 8.dp, 22.dp, 22.dp)
+    } else {
+        RoundedCornerShape(8.dp, 22.dp, 22.dp, 22.dp)
     }
 
     Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.Center
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Top
     ) {
-        Box(
+        if (!isUser) {
+            Image(
+                painter = painterResource(id = teacherPortrait(config.voiceId)),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+            )
+            Spacer(Modifier.width(9.dp))
+        }
+
+        Column(
             modifier = Modifier
-                .clip(RoundedCornerShape(100.dp))
-                .background(ProLearnColors.Surface)
-                .border(1.dp, ProLearnColors.Border, RoundedCornerShape(100.dp))
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    icon, null,
-                    tint = ProLearnColors.Muted,
-                    modifier = Modifier.size(13.dp)
+                .fillMaxWidth(if (isUser) 0.84f else 0.88f)
+                .clip(bubbleShape)
+                .background(
+                    when {
+                        isQueued -> Glass
+                        isUser -> Moss
+                        else -> GlassStrong
+                    }
                 )
-                Spacer(Modifier.width(6.dp))
-                Text(text, fontSize = 12.sp, color = ProLearnColors.MutedDark)
+                .border(
+                    1.dp,
+                    when {
+                        isQueued -> MintGlow.copy(alpha = 0.22f)
+                        isUser -> MintGlow.copy(alpha = 0.32f)
+                        else -> GlassStroke
+                    },
+                    bubbleShape
+                )
+                .padding(horizontal = 14.dp, vertical = 12.dp)
+        ) {
+            if (isQueued) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Pending, null, tint = MintGlow, modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        "QUEUED",
+                        color = MintGlow,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
             }
+            if (message.isHint) {
+                Text(
+                    "HINT",
+                    color = MintGlow,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+                Spacer(Modifier.height(4.dp))
+            }
+            Text(
+                message.text,
+                color = when {
+                    isQueued -> SoftText.copy(alpha = 0.84f)
+                    isUser -> Color.White
+                    else -> SoftText
+                },
+                fontSize = 14.sp,
+                lineHeight = 20.sp
+            )
         }
     }
 }
-
-// ── Partial Transcript Bubble ─────────────────────────────────────────────────
 
 @Composable
 private fun PartialTranscriptBubble(text: String) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 64.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End
     ) {
         Box(
             modifier = Modifier
-                .background(
-                    ProLearnColors.Black.copy(alpha = 0.55f),
-                    RoundedCornerShape(12.dp, 4.dp, 12.dp, 12.dp)
-                )
-                .padding(horizontal = 12.dp, vertical = 10.dp)
+                .fillMaxWidth(0.84f)
+                .clip(RoundedCornerShape(22.dp, 8.dp, 22.dp, 22.dp))
+                .background(Moss.copy(alpha = 0.72f))
+                .border(1.dp, MintGlow.copy(alpha = 0.28f), RoundedCornerShape(22.dp, 8.dp, 22.dp, 22.dp))
+                .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
             Text(
-                text = text,
+                text,
+                color = Color.White.copy(alpha = 0.92f),
                 fontSize = 14.sp,
-                color = ProLearnColors.White,
+                lineHeight = 20.sp,
                 fontStyle = FontStyle.Italic
             )
         }
     }
 }
 
-// ── Typing Indicator ──────────────────────────────────────────────────────────
-
 @Composable
-private fun TypingIndicator() {
-    val infiniteTransition = rememberInfiniteTransition(label = "typing")
+private fun TutorThinkingCard(config: SparConfig) {
+    val infiniteTransition = rememberInfiniteTransition(label = "thinking")
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 40.dp, top = 8.dp, bottom = 8.dp),
-        horizontalArrangement = Arrangement.Start,
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Small AI avatar
-        Box(
+        Image(
+            painter = painterResource(id = teacherPortrait(config.voiceId)),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
             modifier = Modifier
-                .size(24.dp)
+                .size(34.dp)
                 .clip(CircleShape)
-                .background(ProLearnColors.Black),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("AI", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = ProLearnColors.White)
-        }
-        Spacer(Modifier.width(8.dp))
-
-        Box(
+        )
+        Spacer(Modifier.width(9.dp))
+        Row(
             modifier = Modifier
-                .background(ProLearnColors.Surface, RoundedCornerShape(4.dp, 12.dp, 12.dp, 12.dp))
-                .padding(horizontal = 14.dp, vertical = 12.dp)
+                .clip(RoundedCornerShape(8.dp, 22.dp, 22.dp, 22.dp))
+                .background(GlassStrong)
+                .border(1.dp, GlassStroke, RoundedCornerShape(8.dp, 22.dp, 22.dp, 22.dp))
+                .padding(horizontal = 14.dp, vertical = 13.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                repeat(3) { index ->
-                    val dotOffset by infiniteTransition.animateFloat(
-                        initialValue = 0f, targetValue = -5f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(500, delayMillis = index * 160),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "dot_$index"
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .offset(y = dotOffset.dp)
-                            .background(ProLearnColors.Muted, CircleShape)
-                    )
-                }
+            repeat(3) { index ->
+                val offset by infiniteTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = -5f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(520, delayMillis = index * 150),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "dot_$index"
+                )
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .offset(y = offset.dp)
+                        .clip(CircleShape)
+                        .background(MintGlow)
+                )
             }
         }
     }
 }
 
-// ── Mic Permission Card ───────────────────────────────────────────────────────
+@Composable
+private fun TutorControlDock(
+    state: SparState,
+    statusMessage: String,
+    audioLevel: Float,
+    isRecognizerActive: Boolean,
+    onType: () -> Unit,
+    onPickImage: () -> Unit,
+    onPickDocument: () -> Unit,
+    onYoutube: () -> Unit,
+    onStartListening: () -> Unit,
+    onStopListening: () -> Unit,
+    onRetry: () -> Unit
+) {
+    val canTap = state == SparState.StudentListening ||
+            state == SparState.StudentSpeaking ||
+            state == SparState.Idle ||
+            state is SparState.Error
+    val isListening = state == SparState.StudentListening || state == SparState.StudentSpeaking
+    val isAudioActive = state is SparState.AiSpeaking || state == SparState.StudentSpeaking
+    val micSize by animateDpAsState(if (isListening) 60.dp else 56.dp, spring(), label = "micSize")
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(GlassStrong, RoundedCornerShape(26.dp))
+            .border(1.dp, GlassStroke, RoundedCornerShape(26.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        if (state is SparState.Error) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFFFFE1E1).copy(alpha = 0.16f))
+                    .border(1.dp, Color(0xFFFFA3A3).copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                    .clickable { onRetry() }
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("${state.message} · Tap to retry", color = Color(0xFFFFD2D2), fontSize = 12.sp)
+            }
+        } else {
+            StatePill(state = state, statusMessage = statusMessage)
+            Spacer(Modifier.height(6.dp))
+            VoiceWaveform(
+                audioLevel = audioLevel,
+                isActive = isAudioActive,
+                barCount = 13,
+                maxBarHeight = 22.dp,
+                barWidth = 2.dp,
+                modifier = Modifier.height(24.dp)
+            )
+        }
+
+        Spacer(Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            DockAction(Icons.Default.Edit, "Type", onType)
+            DockAction(Icons.Default.Image, "Image", onPickImage)
+            MicDockAction(
+                size = micSize,
+                canTap = canTap,
+                isListening = isListening,
+                isRecognizerActive = isRecognizerActive,
+                onClick = {
+                    if (isRecognizerActive) onStopListening() else onStartListening()
+                }
+            )
+            DockAction(Icons.Default.PictureAsPdf, "PDF", onPickDocument)
+            DockAction(Icons.Default.PlayCircleFilled, "YouTube", onYoutube)
+        }
+    }
+}
+
+@Composable
+private fun MicDockAction(
+    size: androidx.compose.ui.unit.Dp,
+    canTap: Boolean,
+    isListening: Boolean,
+    isRecognizerActive: Boolean,
+    onClick: () -> Unit
+) {
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(68.dp)) {
+        ListeningPulse(visible = isListening)
+        Box(
+            modifier = Modifier
+                .size(size)
+                .clip(CircleShape)
+                .background(if (isListening) MintGlow else if (canTap) Color.White else Glass)
+                .border(
+                    width = 1.dp,
+                    color = if (canTap) MintGlow.copy(alpha = 0.55f) else GlassStroke,
+                    shape = CircleShape
+                )
+                .then(if (canTap) Modifier.clickable { onClick() } else Modifier),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (isRecognizerActive) Icons.Default.MicOff else Icons.Default.Mic,
+                contentDescription = if (isRecognizerActive) "Stop listening" else "Start speaking",
+                tint = if (isListening) DeepInk else if (canTap) Ink else MutedText,
+                modifier = Modifier.size(25.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DockAction(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .background(Glass)
+            .border(1.dp, GlassStroke, CircleShape)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = label, tint = SoftText, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
+private fun ListeningPulse(visible: Boolean) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.42f,
+        animationSpec = infiniteRepeatable(tween(940), RepeatMode.Restart),
+        label = "pulseScale"
+    )
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.24f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(tween(940), RepeatMode.Restart),
+        label = "pulseAlpha"
+    )
+    if (visible) {
+        Box(
+            modifier = Modifier
+                .size(68.dp)
+                .scale(scale)
+                .clip(CircleShape)
+                .background(MintGlow.copy(alpha = alpha))
+        )
+    }
+}
+
+@Composable
+private fun StatePill(state: SparState, statusMessage: String) {
+    val (text, icon) = when (state) {
+        is SparState.AiThinking -> "Preparing the first move..." to Icons.Default.Pending
+        is SparState.AiEvaluating -> "Reading your reasoning..." to Icons.Default.Psychology
+        is SparState.StudentListening -> "Your turn. Tap and speak." to Icons.Default.Mic
+        is SparState.StudentSpeaking -> "Listening closely..." to Icons.Default.GraphicEq
+        is SparState.AiSpeaking -> {
+            val speakingText = if (statusMessage.startsWith("Queued")) {
+                "Queued. Tutor is finishing..."
+            } else {
+                "Tutor is speaking..."
+            }
+            speakingText to Icons.Default.GraphicEq
+        }
+        is SparState.Error -> "Connection needs a retry" to Icons.Default.Pending
+        else -> (statusMessage.ifBlank { "Ready when you are" }) to Icons.Default.AutoAwesome
+    }
+
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(100.dp))
+            .background(Glass)
+            .border(1.dp, GlassStroke, RoundedCornerShape(100.dp))
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = MintGlow, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(7.dp))
+        Text(text, color = SoftText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+    }
+}
 
 @Composable
 private fun MicPermissionCard(
@@ -534,52 +755,118 @@ private fun MicPermissionCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp)
-            .background(ProLearnColors.Surface, RoundedCornerShape(12.dp))
-            .border(1.dp, ProLearnColors.Border, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(28.dp))
+            .background(GlassStrong)
+            .border(1.dp, GlassStroke, RoundedCornerShape(28.dp))
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(
-            Icons.Default.MicOff,
-            contentDescription = null,
-            tint = ProLearnColors.Muted,
-            modifier = Modifier.size(32.dp)
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            "Microphone access needed",
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = ProLearnColors.Black
-        )
+        Icon(Icons.Default.MicOff, null, tint = MintGlow, modifier = Modifier.size(30.dp))
+        Spacer(Modifier.height(10.dp))
+        Text("Microphone access needed", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(6.dp))
         Text(
-            if (showRationale)
-                "ProLearn needs the mic to hear your answers. Please grant permission to spar."
-            else
-                "Tap below to allow microphone access for voice sparring.",
+            if (showRationale) "Allow mic access so the tutor can hear your answers."
+            else "Tap below to enable voice sparring.",
+            color = MutedText,
             fontSize = 13.sp,
-            color = ProLearnColors.Muted,
-            textAlign = TextAlign.Center,
-            lineHeight = 18.sp
+            lineHeight = 18.sp,
+            textAlign = TextAlign.Center
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(14.dp))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(44.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(ProLearnColors.Black)
+                .height(46.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(MintGlow)
                 .clickable { onRequestPermission() },
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                if (showRationale) "Open Settings" else "Allow Microphone",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = ProLearnColors.White
-            )
+            Text("Allow Microphone", color = DeepInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
+
+private fun teacherPortrait(voiceId: String): Int = when (voiceId) {
+    "JTPrASXyK62cF3L7w8hv" -> R.drawable.teacher_pk_anil
+    "X5RWySWhCXiGdP9YIKck" -> R.drawable.teacher_tripti
+    "2BsEFcU7jUhLaUwV4h7l" -> R.drawable.teacher_manav
+    "P0TQBmxaqqw6qfDmK2xb" -> R.drawable.teacher_simran
+    else -> R.drawable.teacher_manav
+}
+
+@Composable
+private fun TextComposerDialog(
+    visible: Boolean,
+    title: String,
+    placeholder: String,
+    action: String,
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit
+) {
+    if (!visible) return
+    var text by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF10231D),
+        title = {
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            BasicTextField(
+                value = text,
+                onValueChange = { text = it },
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    lineHeight = 21.sp
+                ),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = {
+                    if (text.isNotBlank()) onSubmit(text)
+                }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(132.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Glass)
+                    .border(1.dp, GlassStroke, RoundedCornerShape(18.dp))
+                    .padding(14.dp),
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (text.isBlank()) {
+                            Text(placeholder, color = MutedText, fontSize = 14.sp, lineHeight = 20.sp)
+                        }
+                        innerTextField()
+                    }
+                }
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (text.isNotBlank()) onSubmit(text) }
+            ) {
+                Text(action, color = MintGlow, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = MutedText)
+            }
+        }
+    )
+}
+
+private fun Context.readUriBytes(uri: Uri): ByteArray? =
+    runCatching { contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
+
+private fun Context.displayName(uri: Uri): String? =
+    runCatching {
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
+                } else null
+            }
+    }.getOrNull()

@@ -7,6 +7,7 @@ import kotlinx.parcelize.Parcelize
 data class SparConfig(
     val subject: String,
     val chapter: String,
+    val sessionType: String = "Learning",
     val concepts: List<String>,
     val difficulty: String,
     val examTarget: String,

@@ -5,6 +5,7 @@ import com.prolearn.spar.data.remote.dto.GeminiRequest
 import com.prolearn.spar.data.remote.dto.GeminiResponse
 import com.prolearn.spar.data.remote.dto.SystemInstruction
 import com.prolearn.spar.data.remote.dto.Content
+import com.prolearn.spar.data.remote.dto.InlineData
 import com.prolearn.spar.data.remote.dto.Part
 import com.prolearn.spar.data.remote.dto.GenerationConfig
 import com.prolearn.spar.domain.model.Message
@@ -25,6 +26,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.double
+import android.util.Base64
 import android.util.Log
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -47,17 +49,57 @@ class GeminiApi @Inject constructor(
         systemPrompt: String
     ): Result<String> = runCatching {
         Log.d(TAG, "sendMessage() — ${messages.size} messages")
+        val modelMessages = messages.filterNot { it.role == "queued" }
+        sendContents(
+            contents = modelMessages.map { msg ->
+                Content(
+                    role = if (msg.role == "ai") "model" else "user",
+                    parts = listOf(Part(text = msg.text))
+                )
+            },
+            systemPrompt = systemPrompt
+        )
+    }
+
+    suspend fun sendAttachmentMessage(
+        history: List<Message>,
+        systemPrompt: String,
+        prompt: String,
+        mimeType: String,
+        bytes: ByteArray
+    ): Result<String> = runCatching {
+        Log.d(TAG, "sendAttachmentMessage() mime=$mimeType bytes=${bytes.size}")
+        val contents = history.filterNot { it.role == "queued" }.map { msg ->
+            Content(
+                role = if (msg.role == "ai") "model" else "user",
+                parts = listOf(Part(text = msg.text))
+            )
+        } + Content(
+            role = "user",
+            parts = listOf(
+                Part(text = prompt),
+                Part(
+                    inlineData = InlineData(
+                        mimeType = mimeType,
+                        data = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    )
+                )
+            )
+        )
+        sendContents(contents = contents, systemPrompt = systemPrompt, maxOutputTokens = 260)
+    }
+
+    private suspend fun sendContents(
+        contents: List<Content>,
+        systemPrompt: String,
+        maxOutputTokens: Int = 200
+    ): String {
         val response = client.post("$GEMINI_URL?key=${BuildConfig.GEMINI_API_KEY}") {
             contentType(ContentType.Application.Json)
             setBody(GeminiRequest(
-                systemInstruction = SystemInstruction(listOf(Part(systemPrompt))),
-                contents = messages.map { msg ->
-                    Content(
-                        role = if (msg.role == "ai") "model" else "user",
-                        parts = listOf(Part(msg.text))
-                    )
-                },
-                generationConfig = GenerationConfig()
+                systemInstruction = SystemInstruction(listOf(Part(text = systemPrompt))),
+                contents = contents,
+                generationConfig = GenerationConfig(maxOutputTokens = maxOutputTokens)
             ))
         }
         val statusCode = response.status.value
@@ -95,7 +137,7 @@ class GeminiApi @Inject constructor(
             throw IllegalStateException("Gemini returned empty response (finishReason=$finishReason)")
         }
 
-        if (text.contains("[SESSION_COMPLETE]")) "[SESSION_COMPLETE]" else text.trim()
+        return if (text.contains("[SESSION_COMPLETE]")) "[SESSION_COMPLETE]" else text.trim()
     }
 
     suspend fun analyzeSession(transcript: List<Message>): Result<SessionAnalysis> = runCatching {
@@ -104,10 +146,10 @@ class GeminiApi @Inject constructor(
         val response = client.post("$GEMINI_URL?key=${BuildConfig.GEMINI_API_KEY}") {
             contentType(ContentType.Application.Json)
             setBody(GeminiRequest(
-                systemInstruction = SystemInstruction(listOf(Part(
+                systemInstruction = SystemInstruction(listOf(Part(text =
                     "You are an expert tutor analyzing student performance. Return only valid JSON with no other text."
                 ))),
-                contents = listOf(Content(role = "user", parts = listOf(Part(prompt)))),
+                contents = listOf(Content(role = "user", parts = listOf(Part(text = prompt)))),
                 generationConfig = GenerationConfig(temperature = 0.3f, maxOutputTokens = 500)
             ))
         }
@@ -140,10 +182,10 @@ class GeminiApi @Inject constructor(
         val response = client.post("$GEMINI_URL?key=${BuildConfig.GEMINI_API_KEY}") {
             contentType(ContentType.Application.Json)
             setBody(GeminiRequest(
-                systemInstruction = SystemInstruction(listOf(Part(
+                systemInstruction = SystemInstruction(listOf(Part(text =
                     "You give Socratic hints. Never reveal answers."
                 ))),
-                contents = listOf(Content(role = "user", parts = listOf(Part(prompt)))),
+                contents = listOf(Content(role = "user", parts = listOf(Part(text = prompt)))),
                 generationConfig = GenerationConfig(temperature = 0.5f, maxOutputTokens = 100)
             ))
         }

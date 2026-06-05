@@ -85,14 +85,18 @@ class AudioPlaybackService @Inject constructor(
         }
     }
 
-    fun fallbackSpeak(text: String, onComplete: () -> Unit) {
-        Log.d(TAG, "fallbackSpeak() — using Android TTS")
+    fun fallbackSpeak(
+        text: String,
+        languageTag: String = "en-IN",
+        onComplete: () -> Unit
+    ) {
+        Log.d(TAG, "fallbackSpeak() — using Android TTS language=$languageTag")
         releaseTts()
         var ttsReady = false
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 ttsReady = true
-                tts?.language = Locale.forLanguageTag("en-IN")
+                tts?.language = Locale.forLanguageTag(languageTag)
                 tts?.setSpeechRate(0.9f)
                 tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "fallback_tts")
                 Log.d(TAG, "TTS speaking: '${text.take(40)}...'")

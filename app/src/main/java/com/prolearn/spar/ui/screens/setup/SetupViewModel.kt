@@ -105,7 +105,7 @@ class SetupViewModel @Inject constructor(
             }.onFailure {
                 if (it is CancellationException) throw it
                 if (previewJob?.isActive == true) {
-                    audioPlayer.fallbackSpeak(text) {
+                    audioPlayer.fallbackSpeak(text, teacher.languageTag()) {
                         _previewingVoiceId.value = null
                     }
                 }
@@ -154,6 +154,8 @@ data class TeacherOption(
     val displayName: String get() = "$name ($style)"
 }
 
+private fun TeacherOption.languageTag(): String = "en-IN"
+
 object Teachers {
     val options = listOf(
         TeacherOption(
@@ -162,7 +164,7 @@ object Teachers {
             name = "P k anil",
             language = "Hindi",
             specialty = "Expert at simplifying tough ideas",
-            previewText = "नमस्ते! मैं पी के अनिल हूं। मुश्किल कॉन्सेप्ट को बिल्कुल आसान भाषा में, स्टेप बाय स्टेप समझाएंगे। चलिए शुरू करते हैं।"
+            previewText = "Hi! Main P K Anil hoon. Tough concepts ko simple Hinglish mein, step by step samjhayenge. Chalo start karte hain."
         ),
         TeacherOption(
             voiceId = "X5RWySWhCXiGdP9YIKck",
@@ -170,7 +172,7 @@ object Teachers {
             name = "Tripti",
             language = "Hindi",
             specialty = "Expert at focus and exam discipline",
-            previewText = "नमस्ते, मैं तृप्ति हूं। आज हम ध्यान भटकाने वाली चीजों को साइड में रखेंगे, स्मार्ट प्रैक्टिस करेंगे, और आपकी तैयारी को तेज बनाएंगे।"
+            previewText = "Hi, main Tripti hoon. Aaj distractions side mein rakhenge, smart practice karenge, aur preparation ko sharp banayenge."
         ),
         TeacherOption(
             voiceId = "2BsEFcU7jUhLaUwV4h7l",

@@ -20,7 +20,16 @@ data class Content(
 )
 
 @Serializable
-data class Part(val text: String)
+data class Part(
+    val text: String? = null,
+    @SerialName("inline_data") val inlineData: InlineData? = null
+)
+
+@Serializable
+data class InlineData(
+    @SerialName("mime_type") val mimeType: String,
+    val data: String
+)
 
 @Serializable
 data class GenerationConfig(

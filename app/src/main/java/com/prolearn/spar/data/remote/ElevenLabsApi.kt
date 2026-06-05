@@ -4,6 +4,7 @@ import android.util.Log
 import com.prolearn.spar.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.request.header
+import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.readBytes
@@ -50,9 +51,10 @@ class ElevenLabsApi @Inject constructor(
         Log.d(TAG, "synthesize() voiceId=$voiceId text='${text.take(60)}'")
 
         val response = client.post(
-            "https://api.elevenlabs.io/v1/text-to-speech/$voiceId"
+            "https://api.elevenlabs.io/v1/text-to-speech/$voiceId/stream"
         ) {
             header("xi-api-key", BuildConfig.ELEVENLABS_API_KEY)
+            parameter("output_format", "mp3_22050_32")
             contentType(ContentType.Application.Json)
             setBody(ElevenLabsRequest(text = text))
         }
