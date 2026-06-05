@@ -34,7 +34,8 @@ data class InlineData(
 @Serializable
 data class GenerationConfig(
     val temperature: Float = 0.7f,
-    @SerialName("maxOutputTokens") val maxOutputTokens: Int = 200
+    @SerialName("maxOutputTokens") val maxOutputTokens: Int = 200,
+    @SerialName("responseMimeType") val responseMimeType: String? = null
 )
 
 @Serializable

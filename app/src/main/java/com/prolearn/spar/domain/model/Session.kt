@@ -17,6 +17,8 @@ data class Session(
     val aiInsight: String,
     val hintsUsed: Int,
     val independentAnswers: Int,
+    val reportDetails: SessionReportDetails? = null,
+    val reportGenerationFailed: Boolean = false,
     val voiceMetrics: VoiceMetrics? = null
 )
 
@@ -24,6 +26,22 @@ data class Session(
 data class ConceptScore(
     val name: String,
     val score: Int
+)
+
+@Serializable
+data class SessionReportDetails(
+    val title: String = "",
+    val summary: String = "",
+    val highlights: List<String> = emptyList(),
+    val nextSteps: List<String> = emptyList(),
+    val flashcards: List<SessionFlashcard> = emptyList()
+)
+
+@Serializable
+data class SessionFlashcard(
+    val front: String,
+    val back: String,
+    val tag: String = "Review"
 )
 
 @Serializable

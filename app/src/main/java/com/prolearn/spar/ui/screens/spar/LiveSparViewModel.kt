@@ -742,9 +742,6 @@ class LiveSparViewModel @Inject constructor(
         audioPlayer.stop()
         haptics.sessionComplete()
         setStatus("Session complete!")
-        if (navigateImmediately) {
-            _state.value = SparState.SessionComplete
-        }
 
         viewModelScope.launch {
             val config = sessionConfig ?: run {
@@ -756,35 +753,26 @@ class LiveSparViewModel @Inject constructor(
                 ((totalAnswers - hintsUsed).coerceAtLeast(0) * 100 / totalAnswers).coerceIn(0, 100)
             else 0
 
-            sparRepository.analyzeSession(_messages.value)
-                .onSuccess { analysis ->
-                    Log.i(TAG, "Analysis: score=${analysis.overallScore}")
-                    sparRepository.completeSession(
-                        subject = config.subject, chapter = config.chapter,
-                        difficulty = config.difficulty, examTarget = config.examTarget,
-                        questionCount = questionCount, score = analysis.overallScore,
-                        durationSeconds = _timer.value, conceptScores = analysis.conceptScores,
-                        aiInsight = analysis.aiInsight, hintsUsed = hintsUsed,
-                        independentAnswers = (totalAnswers - hintsUsed).coerceAtLeast(0),
-                        messages = _messages.value
-                    )
-                }
-                .onFailure { e ->
-                    Log.e(TAG, "analyzeSession failed: ${e.message}, using estimated=$estimatedScore")
-                    sparRepository.completeSession(
-                        subject = config.subject, chapter = config.chapter,
-                        difficulty = config.difficulty, examTarget = config.examTarget,
-                        questionCount = questionCount, score = estimatedScore,
-                        durationSeconds = _timer.value, conceptScores = emptyList(),
-                        aiInsight = "Great effort! Keep practicing to strengthen your fundamentals.",
-                        hintsUsed = hintsUsed,
-                        independentAnswers = (totalAnswers - hintsUsed).coerceAtLeast(0),
-                        messages = _messages.value
-                    )
-                }
-            if (!navigateImmediately) {
-                _state.value = SparState.SessionComplete
-            }
+            val provisionalSession = sparRepository.completeSession(
+                subject = config.subject,
+                chapter = config.chapter,
+                difficulty = config.difficulty,
+                examTarget = config.examTarget,
+                questionCount = questionCount,
+                score = estimatedScore,
+                durationSeconds = _timer.value,
+                conceptScores = emptyList(),
+                aiInsight = "",
+                hintsUsed = hintsUsed,
+                independentAnswers = (totalAnswers - hintsUsed).coerceAtLeast(0),
+                messages = _messages.value
+            )
+
+            sparRepository.generateReportForSession(
+                session = provisionalSession,
+                messages = _messages.value
+            )
+            _state.value = SparState.SessionComplete
         }
     }
 

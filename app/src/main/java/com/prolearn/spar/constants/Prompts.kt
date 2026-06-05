@@ -107,17 +107,60 @@ private fun teacherLanguageRule(voiceId: String): String = when (voiceId) {
 }
 
 fun buildAnalysisPrompt(transcript: String): String = """
-Analyze this spar session transcript. Return JSON with:
+Analyze this spar session transcript and generate a premium personalized learning report.
+Use only what actually happened in the transcript. Do not invent concepts, strengths, mistakes, or flashcards.
+
+Return JSON with:
 {
+  "title": "short personalized report title, max 5 words",
+  "summary": "2 sentence session summary based on the real conversation",
+  "highlights": ["2-4 specific wins or useful moments from the session"],
+  "nextSteps": ["2-4 concrete next actions based on the actual gaps"],
   "conceptScores": [{"name": "concept", "score": 0-100}],
   "aiInsight": "2-3 sentence personalized insight on strengths and gaps",
-  "overallScore": 0-100
+  "overallScore": 0-100,
+  "flashcards": [
+    {
+      "tag": "short tag",
+      "front": "student-facing recall question from this exact session",
+      "back": "concise answer/explanation grounded in this session"
+    }
+  ]
 }
+
+Rules:
+- If the session was too short or not valuable, return empty arrays for highlights, nextSteps, conceptScores, and flashcards.
+- Generate flashcards only for concepts or explanations actually discussed.
+- Keep all strings concise and student-friendly.
 
 Transcript:
 $transcript
 
 Return ONLY valid JSON, no other text.
+""".trimIndent()
+
+fun buildCompactAnalysisPrompt(transcript: String): String = """
+Generate a compact valid JSON report from this tutor session transcript.
+Use only what actually happened. Do not invent details.
+
+Schema:
+{
+  "title": "max 4 words",
+  "summary": "one short sentence",
+  "highlights": ["max 2 short real highlights"],
+  "nextSteps": ["max 2 concrete next actions"],
+  "conceptScores": [{"name": "real concept", "score": 0-100}],
+  "aiInsight": "one short personalized insight",
+  "overallScore": 0-100,
+  "flashcards": [{"tag": "Review", "front": "short question", "back": "short answer"}]
+}
+
+If the transcript is too short, use empty arrays where needed.
+
+Transcript:
+$transcript
+
+Return ONLY valid JSON.
 """.trimIndent()
 
 fun buildHintPrompt(question: String): String = """

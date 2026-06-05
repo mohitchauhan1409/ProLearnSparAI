@@ -6,5 +6,6 @@ import kotlinx.serialization.Serializable
 data class SessionAnalysis(
     val conceptScores: List<ConceptScore>,
     val aiInsight: String,
-    val overallScore: Int
+    val overallScore: Int,
+    val reportDetails: SessionReportDetails = SessionReportDetails()
 )

@@ -1,5 +1,6 @@
 package com.prolearn.spar.data.repository
 
+import android.util.Log
 import com.prolearn.spar.data.local.SessionDataStore
 import com.prolearn.spar.data.remote.GeminiApi
 import com.prolearn.spar.data.remote.VoiceIds
@@ -9,7 +10,14 @@ import com.prolearn.spar.domain.model.Message
 import com.prolearn.spar.domain.model.Session
 import com.prolearn.spar.domain.model.SessionAnalysis
 import com.prolearn.spar.domain.model.ConceptScore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -17,12 +25,16 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private const val TAG = "SparRepository"
+
 @Singleton
 class SparRepository @Inject constructor(
     private val geminiApi: GeminiApi,
     private val youtubeTranscriptApi: YoutubeTranscriptApi,
     private val sessionDataStore: SessionDataStore
 ) {
+    private val reportScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     val hasLaunched: Flow<Boolean> = sessionDataStore.hasLaunched
     val streak: Flow<Int> = sessionDataStore.streak
     val bestStreak: Flow<Int> = sessionDataStore.bestStreak
@@ -31,6 +43,8 @@ class SparRepository @Inject constructor(
     val totalSessions: Flow<Int> = sessionDataStore.totalSessions
     val totalQuestions: Flow<Int> = sessionDataStore.totalQuestions
     val selectedVoice: Flow<String> = sessionDataStore.selectedVoice
+    private val _lastCompletedSession = MutableStateFlow<Session?>(null)
+    val lastCompletedSession: StateFlow<Session?> = _lastCompletedSession.asStateFlow()
 
     suspend fun sendMessage(messages: List<Message>, systemPrompt: String): Result<String> {
         return geminiApi.sendMessage(messages, systemPrompt)
@@ -79,7 +93,7 @@ class SparRepository @Inject constructor(
         sessionDataStore.incrementTotalSessions()
         sessionDataStore.addQuestions(questionCount)
 
-        return Session(
+        val session = Session(
             id = UUID.randomUUID().toString(),
             subject = subject,
             chapter = chapter,
@@ -94,6 +108,37 @@ class SparRepository @Inject constructor(
             hintsUsed = hintsUsed,
             independentAnswers = independentAnswers
         )
+        _lastCompletedSession.value = session
+        return session
+    }
+
+    fun updateLastCompletedSession(session: Session) {
+        _lastCompletedSession.value = session
+    }
+
+    fun generateReportForSession(session: Session, messages: List<Message>) {
+        Log.i(TAG, "generateReportForSession() session=${session.id} messages=${messages.size}")
+        reportScope.launch {
+            analyzeSession(messages)
+                .onSuccess { analysis ->
+                    Log.i(TAG, "Report generated session=${session.id} score=${analysis.overallScore}")
+                    updateLastCompletedSession(
+                        session.copy(
+                            score = analysis.overallScore,
+                            conceptScores = analysis.conceptScores,
+                            aiInsight = analysis.aiInsight,
+                            reportDetails = analysis.reportDetails,
+                            reportGenerationFailed = false
+                        )
+                    )
+                }
+                .onFailure { e ->
+                    Log.e(TAG, "Report generation failed session=${session.id}: ${e.message}")
+                    updateLastCompletedSession(
+                        session.copy(reportGenerationFailed = true)
+                    )
+                }
+        }
     }
 
     suspend fun setHasLaunched() {

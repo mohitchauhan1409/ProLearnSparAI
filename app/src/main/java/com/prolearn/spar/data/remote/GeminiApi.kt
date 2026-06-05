@@ -1,19 +1,20 @@
 package com.prolearn.spar.data.remote
 
+import android.util.Base64
+import android.util.Log
 import com.prolearn.spar.BuildConfig
-import com.prolearn.spar.data.remote.dto.GeminiRequest
-import com.prolearn.spar.data.remote.dto.GeminiResponse
-import com.prolearn.spar.data.remote.dto.SystemInstruction
 import com.prolearn.spar.data.remote.dto.Content
+import com.prolearn.spar.data.remote.dto.GeminiRequest
+import com.prolearn.spar.data.remote.dto.GenerationConfig
 import com.prolearn.spar.data.remote.dto.InlineData
 import com.prolearn.spar.data.remote.dto.Part
-import com.prolearn.spar.data.remote.dto.GenerationConfig
+import com.prolearn.spar.data.remote.dto.SystemInstruction
+import com.prolearn.spar.domain.model.ConceptScore
 import com.prolearn.spar.domain.model.Message
 import com.prolearn.spar.domain.model.SessionAnalysis
-import com.prolearn.spar.domain.model.ConceptScore
+import com.prolearn.spar.domain.model.SessionFlashcard
+import com.prolearn.spar.domain.model.SessionReportDetails
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -21,13 +22,11 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.int
-import kotlinx.serialization.json.double
-import android.util.Base64
-import android.util.Log
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -96,11 +95,13 @@ class GeminiApi @Inject constructor(
     ): String {
         val response = client.post("$GEMINI_URL?key=${BuildConfig.GEMINI_API_KEY}") {
             contentType(ContentType.Application.Json)
-            setBody(GeminiRequest(
-                systemInstruction = SystemInstruction(listOf(Part(text = systemPrompt))),
-                contents = contents,
-                generationConfig = GenerationConfig(maxOutputTokens = maxOutputTokens)
-            ))
+            setBody(
+                GeminiRequest(
+                    systemInstruction = SystemInstruction(listOf(Part(text = systemPrompt))),
+                    contents = contents,
+                    generationConfig = GenerationConfig(maxOutputTokens = maxOutputTokens)
+                )
+            )
         }
         val statusCode = response.status.value
         val bodyText = response.bodyAsText()
@@ -143,37 +144,91 @@ class GeminiApi @Inject constructor(
     suspend fun analyzeSession(transcript: List<Message>): Result<SessionAnalysis> = runCatching {
         val transcriptText = transcript.joinToString("\n") { "${it.role}: ${it.text}" }
         val prompt = com.prolearn.spar.constants.buildAnalysisPrompt(transcriptText)
+        val resultText = requestSessionAnalysisJson(prompt, maxOutputTokens = 2600)
+        val analysisJson = runCatching {
+            json.parseToJsonElement(resultText.extractJsonObject()).jsonObject
+        }.getOrElse { parseError ->
+            Log.w(TAG, "Report JSON parse failed, retrying compact report: ${parseError.message}")
+            val retryPrompt = com.prolearn.spar.constants.buildCompactAnalysisPrompt(transcriptText)
+            json.parseToJsonElement(
+                requestSessionAnalysisJson(retryPrompt, maxOutputTokens = 1800).extractJsonObject()
+            ).jsonObject
+        }
+        parseSessionAnalysis(analysisJson)
+    }
+
+    private suspend fun requestSessionAnalysisJson(prompt: String, maxOutputTokens: Int): String {
         val response = client.post("$GEMINI_URL?key=${BuildConfig.GEMINI_API_KEY}") {
             contentType(ContentType.Application.Json)
-            setBody(GeminiRequest(
-                systemInstruction = SystemInstruction(listOf(Part(text =
-                    "You are an expert tutor analyzing student performance. Return only valid JSON with no other text."
-                ))),
-                contents = listOf(Content(role = "user", parts = listOf(Part(text = prompt)))),
-                generationConfig = GenerationConfig(temperature = 0.3f, maxOutputTokens = 500)
-            ))
+            setBody(
+                GeminiRequest(
+                    systemInstruction = SystemInstruction(
+                        listOf(
+                            Part(
+                                text =
+                                    "You are an expert tutor analyzing student performance. Return only valid JSON with no other text."
+                            )
+                        )
+                    ),
+                    contents = listOf(Content(role = "user", parts = listOf(Part(text = prompt)))),
+                    generationConfig = GenerationConfig(
+                        temperature = 0.25f,
+                        maxOutputTokens = maxOutputTokens,
+                        responseMimeType = "application/json"
+                    )
+                )
+            )
         }
         val bodyText = response.bodyAsText()
         val body = json.parseToJsonElement(bodyText)
+        val finishReason = body.jsonObject["candidates"]?.jsonArray
+            ?.firstOrNull()?.jsonObject
+            ?.get("finishReason")?.jsonPrimitive?.contentOrNull
         val resultText = body.jsonObject["candidates"]?.jsonArray
             ?.firstOrNull()?.jsonObject
             ?.get("content")?.jsonObject
             ?.get("parts")?.jsonArray
             ?.firstOrNull()?.jsonObject
             ?.get("text")?.jsonPrimitive?.content ?: "{}"
-        val cleanJson = resultText.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-        val analysisJson = json.parseToJsonElement(cleanJson).jsonObject
+        Log.i(TAG, "analyzeSession finishReason=$finishReason chars=${resultText.length}")
+        return resultText
+    }
+
+    private fun parseSessionAnalysis(analysisJson: JsonObject): SessionAnalysis {
         val scores = analysisJson["conceptScores"]?.jsonArray?.map { elem ->
             val obj = elem.jsonObject
             ConceptScore(
-                name = obj["name"]?.jsonPrimitive?.content ?: "",
+                name = obj["name"]?.jsonPrimitive?.contentOrNull ?: "",
                 score = obj["score"]?.jsonPrimitive?.int ?: 0
             )
         } ?: emptyList()
-        SessionAnalysis(
+        val flashcards = analysisJson["flashcards"]?.jsonArray?.mapNotNull { elem ->
+            val obj = elem as? JsonObject ?: return@mapNotNull null
+            val front = obj["front"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            val back = obj["back"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            if (front.isBlank() || back.isBlank()) return@mapNotNull null
+            SessionFlashcard(
+                front = front,
+                back = back,
+                tag = obj["tag"]?.jsonPrimitive?.contentOrNull ?: "Review"
+            )
+        } ?: emptyList()
+        val details = SessionReportDetails(
+            title = analysisJson["title"]?.jsonPrimitive?.contentOrNull ?: "",
+            summary = analysisJson["summary"]?.jsonPrimitive?.contentOrNull ?: "",
+            highlights = analysisJson["highlights"]?.jsonArray?.mapNotNull {
+                it.jsonPrimitive.contentOrNull
+            } ?: emptyList(),
+            nextSteps = analysisJson["nextSteps"]?.jsonArray?.mapNotNull {
+                it.jsonPrimitive.contentOrNull
+            } ?: emptyList(),
+            flashcards = flashcards
+        )
+        return SessionAnalysis(
             conceptScores = scores,
-            aiInsight = analysisJson["aiInsight"]?.jsonPrimitive?.content ?: "",
-            overallScore = analysisJson["overallScore"]?.jsonPrimitive?.int ?: 0
+            aiInsight = analysisJson["aiInsight"]?.jsonPrimitive?.contentOrNull ?: "",
+            overallScore = analysisJson["overallScore"]?.jsonPrimitive?.int ?: 0,
+            reportDetails = details
         )
     }
 
@@ -181,13 +236,20 @@ class GeminiApi @Inject constructor(
         val prompt = com.prolearn.spar.constants.buildHintPrompt(question)
         val response = client.post("$GEMINI_URL?key=${BuildConfig.GEMINI_API_KEY}") {
             contentType(ContentType.Application.Json)
-            setBody(GeminiRequest(
-                systemInstruction = SystemInstruction(listOf(Part(text =
-                    "You give Socratic hints. Never reveal answers."
-                ))),
-                contents = listOf(Content(role = "user", parts = listOf(Part(text = prompt)))),
-                generationConfig = GenerationConfig(temperature = 0.5f, maxOutputTokens = 100)
-            ))
+            setBody(
+                GeminiRequest(
+                    systemInstruction = SystemInstruction(
+                        listOf(
+                            Part(
+                                text =
+                                    "You give Socratic hints. Never reveal answers."
+                            )
+                        )
+                    ),
+                    contents = listOf(Content(role = "user", parts = listOf(Part(text = prompt)))),
+                    generationConfig = GenerationConfig(temperature = 0.5f, maxOutputTokens = 100)
+                )
+            )
         }
         val bodyText = response.bodyAsText()
         val body = json.parseToJsonElement(bodyText)
@@ -198,4 +260,15 @@ class GeminiApi @Inject constructor(
             ?.firstOrNull()?.jsonObject
             ?.get("text")?.jsonPrimitive?.content?.trim() ?: ""
     }
+}
+
+private fun String.extractJsonObject(): String {
+    val trimmed = trim()
+        .removePrefix("```json")
+        .removePrefix("```")
+        .removeSuffix("```")
+        .trim()
+    val start = trimmed.indexOf('{')
+    val end = trimmed.lastIndexOf('}')
+    return if (start >= 0 && end > start) trimmed.substring(start, end + 1) else trimmed
 }

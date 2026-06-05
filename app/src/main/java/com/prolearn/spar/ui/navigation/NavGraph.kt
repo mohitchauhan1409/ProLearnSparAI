@@ -146,24 +146,6 @@ fun ProLearnNavGraph(navController: NavHostController) {
         // ─── SessionReport ────────────────────────────────────────────────────
         composable(Routes.SessionReport.route) {
             SessionReportScreen(
-                session = com.prolearn.spar.domain.model.Session(
-                    id = "temp",
-                    subject = "Physics",
-                    chapter = "Kinematics",
-                    difficulty = "JEE Advanced",
-                    examTarget = "JEE Advanced",
-                    questionCount = 8,
-                    score = 72,
-                    durationSeconds = 720,
-                    timestamp = System.currentTimeMillis(),
-                    conceptScores = listOf(
-                        com.prolearn.spar.domain.model.ConceptScore("Kinematics", 85),
-                        com.prolearn.spar.domain.model.ConceptScore("Newton's Laws", 60)
-                    ),
-                    aiInsight = "You have a solid grasp of kinematics. Focus on Newton's Laws and free body diagrams for better scores.",
-                    hintsUsed = 1,
-                    independentAnswers = 7
-                ),
                 onNavigateToHome = {
                     navController.navigate(Routes.Home.route) {
                         popUpTo(Routes.Home.route) { inclusive = true }
