@@ -11,14 +11,15 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -42,11 +43,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.PlayCircleFilled
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.outlined.ArrowForward
@@ -66,15 +65,17 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.prolearn.spar.R
 import com.prolearn.spar.ui.components.ui.Avatar
 import com.prolearn.spar.ui.theme.BricolageGrotesqueFamily
 import com.prolearn.spar.ui.theme.ProLearnColors
@@ -88,6 +89,7 @@ private val SkyMist = Color(0xFFEAF3FF)
 private val BlushMist = Color(0xFFFFEFF3)
 private val SoftBorder = Color(0xFFDDE5DC)
 private val GlassStroke = Color(0x88FFFFFF)
+private const val FeatureArtworkAspectRatio = 2.6013987f
 
 private data class FeatureCard(
     val eyebrow: String,
@@ -96,17 +98,8 @@ private data class FeatureCard(
     val icon: ImageVector,
     val colors: List<Color>,
     val accent: Color,
-    val visual: FeatureVisual
+    val imageRes: Int
 )
-
-private enum class FeatureVisual {
-    Voice,
-    Debate,
-    Materials,
-    Progress,
-    Topics,
-    Tutor
-}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -431,7 +424,7 @@ private fun FeatureCarousel() {
                 icon = Icons.Default.Mic,
                 colors = listOf(Color(0xFFEAF6D8), Color(0xFFFFFFFF), Color(0xFFFFF7E8)),
                 accent = Moss,
-                visual = FeatureVisual.Voice
+                imageRes = R.drawable.home_feature_voice
             ),
             FeatureCard(
                 eyebrow = "THINKING DRILLS",
@@ -440,7 +433,7 @@ private fun FeatureCarousel() {
                 icon = Icons.Default.Psychology,
                 colors = listOf(Color(0xFFEAF3FF), Color(0xFFFFFFFF), Color(0xFFF2EEFF)),
                 accent = Color(0xFF4C6F9F),
-                visual = FeatureVisual.Debate
+                imageRes = R.drawable.home_feature_debate
             ),
             FeatureCard(
                 eyebrow = "YOUR MATERIALS",
@@ -449,7 +442,7 @@ private fun FeatureCarousel() {
                 icon = Icons.Default.PictureAsPdf,
                 colors = listOf(Color(0xFFFFF2DA), Color(0xFFFFFFFF), Color(0xFFEAF3FF)),
                 accent = Color(0xFF8C673B),
-                visual = FeatureVisual.Materials
+                imageRes = R.drawable.home_feature_materials
             ),
             FeatureCard(
                 eyebrow = "PROGRESS",
@@ -458,7 +451,7 @@ private fun FeatureCarousel() {
                 icon = Icons.Default.GraphicEq,
                 colors = listOf(Color(0xFFFFEFF3), Color(0xFFFFFFFF), Color(0xFFEAF6D8)),
                 accent = Color(0xFFB45A72),
-                visual = FeatureVisual.Progress
+                imageRes = R.drawable.home_feature_progress
             ),
             FeatureCard(
                 eyebrow = "CURATED PREP",
@@ -467,7 +460,7 @@ private fun FeatureCarousel() {
                 icon = Icons.Default.MenuBook,
                 colors = listOf(Color(0xFFEAF6D8), Color(0xFFFFFFFF), Color(0xFFFFF2DA)),
                 accent = Color(0xFF99703F),
-                visual = FeatureVisual.Topics
+                imageRes = R.drawable.home_feature_topics
             ),
             FeatureCard(
                 eyebrow = "AI TEACHERS",
@@ -476,7 +469,7 @@ private fun FeatureCarousel() {
                 icon = Icons.Default.School,
                 colors = listOf(Color(0xFFF2EEFF), Color(0xFFFFFFFF), Color(0xFFFFEFF3)),
                 accent = Color(0xFF705E9F),
-                visual = FeatureVisual.Tutor
+                imageRes = R.drawable.home_feature_tutor
             )
         )
     }
@@ -625,7 +618,7 @@ private fun FeatureShowcaseCard(
                 )
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
 
             Text(
                 feature.title,
@@ -645,305 +638,34 @@ private fun FeatureShowcaseCard(
                 modifier = Modifier.fillMaxWidth(0.86f)
             )
 
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(14.dp))
 
-            FeatureVisualArt(
-                visual = feature.visual,
-                accent = feature.accent,
-                drift = drift,
-                parallax = pageOffset
-            )
-        }
-    }
-}
-
-@Composable
-private fun FeatureVisualArt(
-    visual: FeatureVisual,
-    accent: Color,
-    drift: Float,
-    parallax: Float
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(112.dp)
-            .graphicsLayer {
-                translationX = drift * (1f - parallax)
-                translationY = -drift * 0.28f
-            }
-    ) {
-        when (visual) {
-            FeatureVisual.Voice -> VoiceVisual(accent)
-            FeatureVisual.Debate -> DebateVisual(accent)
-            FeatureVisual.Materials -> MaterialsVisual(accent)
-            FeatureVisual.Progress -> ProgressVisual(accent)
-            FeatureVisual.Topics -> TopicsVisual(accent)
-            FeatureVisual.Tutor -> TutorVisual(accent)
-        }
-    }
-}
-
-@Composable
-private fun BoxScope.VoiceVisual(accent: Color) {
-    Row(
-        modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .fillMaxWidth()
-            .height(88.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color.White.copy(alpha = 0.58f))
-            .border(1.dp, GlassStroke, RoundedCornerShape(24.dp))
-            .padding(horizontal = 18.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        repeat(13) { index ->
-            val height = listOf(18, 28, 44, 32, 58, 36, 68, 40, 56, 30, 42, 24, 34)[index]
             Box(
                 modifier = Modifier
-                    .width(5.dp)
-                    .height(height.dp)
-                    .clip(RoundedCornerShape(100.dp))
-                    .background(if (index % 3 == 0) accent else accent.copy(alpha = 0.34f))
-            )
-        }
-    }
-}
-
-@Composable
-private fun DebateVisual(accent: Color) {
-    Box(Modifier.fillMaxSize()) {
-        BubbleLine("Why that step?", accent, Alignment.TopStart, 0.dp)
-        BubbleLine("Because velocity changes.", Ink, Alignment.CenterEnd, 16.dp)
-        BubbleLine("Prove it.", accent, Alignment.BottomStart, 34.dp)
-    }
-}
-
-@Composable
-private fun BoxScope.BubbleLine(
-    text: String,
-    color: Color,
-    align: Alignment,
-    x: androidx.compose.ui.unit.Dp
-) {
-    Box(
-        modifier = Modifier
-            .align(align)
-            .offset(x = x)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White.copy(alpha = 0.72f))
-            .border(1.dp, color.copy(alpha = 0.18f), RoundedCornerShape(18.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp)
-    ) {
-        Text(
-            text,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = color,
-            fontFamily = BricolageGrotesqueFamily
-        )
-    }
-}
-
-@Composable
-private fun MaterialsVisual(accent: Color) {
-    Row(
-        modifier = Modifier.fillMaxSize(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.Bottom
-    ) {
-        MaterialSourceTile(
-            label = "Image",
-            icon = Icons.Default.Image,
-            accent = accent,
-            modifier = Modifier
-                .weight(1f)
-                .height(82.dp)
-        )
-        MaterialSourceTile(
-            label = "PDF",
-            icon = Icons.Default.PictureAsPdf,
-            accent = Color(0xFFB45A72),
-            modifier = Modifier
-                .weight(1f)
-                .height(104.dp)
-        )
-        MaterialSourceTile(
-            label = "Video",
-            icon = Icons.Default.PlayCircleFilled,
-            accent = Color(0xFF4C6F9F),
-            modifier = Modifier
-                .weight(1f)
-                .height(90.dp)
-        )
-    }
-}
-
-@Composable
-private fun MaterialSourceTile(
-    label: String,
-    icon: ImageVector,
-    accent: Color,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(22.dp))
-            .background(Color.White.copy(alpha = 0.64f))
-            .border(1.dp, GlassStroke, RoundedCornerShape(22.dp))
-            .padding(10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(accent.copy(alpha = 0.14f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, null, tint = accent, modifier = Modifier.size(18.dp))
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(4.dp)
-                .clip(RoundedCornerShape(100.dp))
-                .background(accent.copy(alpha = 0.18f))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.68f)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(100.dp))
-                    .background(accent.copy(alpha = 0.68f))
-            )
-        }
-        Text(
-            label,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = Ink,
-            fontFamily = BricolageGrotesqueFamily,
-            maxLines = 1
-        )
-    }
-}
-
-@Composable
-private fun ProgressVisual(accent: Color) {
-    Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color.White.copy(alpha = 0.58f))
-            .border(1.dp, GlassStroke, RoundedCornerShape(24.dp))
-            .padding(16.dp),
-        verticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        listOf(32, 52, 42, 72, 60, 84, 96).forEachIndexed { index, height ->
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(height.dp)
-                    .clip(RoundedCornerShape(100.dp))
-                    .background(if (index == 6) accent else accent.copy(alpha = 0.24f))
-            )
-        }
-    }
-}
-
-@Composable
-private fun TopicsVisual(accent: Color) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color.White.copy(alpha = 0.58f))
-            .border(1.dp, GlassStroke, RoundedCornerShape(24.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        listOf("Physics", "Calculus", "Organic Chem").forEachIndexed { index, label ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth(if (index == 2) 0.86f else 1f)
-                    .height(26.dp)
-                    .clip(RoundedCornerShape(100.dp))
-                    .background(
-                        if (index == 0) accent.copy(alpha = 0.15f) else Color.White.copy(
-                            alpha = 0.72f
-                        )
-                    )
-                    .border(
-                        1.dp,
-                        accent.copy(alpha = if (index == 0) 0.34f else 0.12f),
-                        RoundedCornerShape(100.dp)
-                    )
-                    .padding(horizontal = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxWidth()
+                    .aspectRatio(FeatureArtworkAspectRatio)
+                    .graphicsLayer {
+                        translationX = drift * (1f - pageOffset)
+                        translationY = -drift * 0.18f
+                    }
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color.White.copy(alpha = 0.54f))
+                    .border(1.dp, GlassStroke, RoundedCornerShape(24.dp))
             ) {
-                Box(
-                    Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(accent.copy(alpha = 0.68f))
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(label, fontSize = 11.sp, color = Ink, fontFamily = BricolageGrotesqueFamily)
-            }
-        }
-    }
-}
-
-@Composable
-private fun TutorVisual(accent: Color) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color.White.copy(alpha = 0.58f))
-            .border(1.dp, GlassStroke, RoundedCornerShape(24.dp))
-    ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val stroke = 5.dp.toPx()
-            drawLine(
-                color = accent.copy(alpha = 0.32f),
-                start = Offset(size.width * 0.2f, size.height * 0.72f),
-                end = Offset(size.width * 0.78f, size.height * 0.28f),
-                strokeWidth = stroke,
-                cap = StrokeCap.Round
-            )
-            drawLine(
-                color = accent.copy(alpha = 0.18f),
-                start = Offset(size.width * 0.26f, size.height * 0.32f),
-                end = Offset(size.width * 0.84f, size.height * 0.72f),
-                strokeWidth = stroke,
-                cap = StrokeCap.Round
-            )
-        }
-        listOf(
-            Alignment.TopStart to Icons.Default.School,
-            Alignment.Center to Icons.Default.AutoAwesome,
-            Alignment.BottomEnd to Icons.Default.Mic
-        ).forEachIndexed { index, item ->
-            Box(
-                modifier = Modifier
-                    .align(item.first)
-                    .padding(16.dp)
-                    .size(if (index == 1) 48.dp else 38.dp)
-                    .clip(CircleShape)
-                    .background(if (index == 1) accent else Color.White.copy(alpha = 0.86f))
-                    .border(1.dp, GlassStroke, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = item.second,
+                Image(
+                    painter = painterResource(id = feature.imageRes),
                     contentDescription = null,
-                    tint = if (index == 1) Color.White else accent,
-                    modifier = Modifier.size(if (index == 1) 22.dp else 18.dp)
+                    contentScale = ContentScale.FillBounds,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Color.White.copy(alpha = 0.1f))
+                            )
+                        )
                 )
             }
         }
@@ -1060,7 +782,7 @@ private fun PremiumActionButton(
                 scaleX = scale
                 scaleY = scale
             }
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(Ink)
             .border(
                 1.dp,
