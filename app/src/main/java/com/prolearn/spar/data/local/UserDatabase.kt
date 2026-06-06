@@ -125,6 +125,16 @@ class UserDatabase @Inject constructor(
         return readUsers().find { it.id == id }
     }
 
+    suspend fun updateExamTarget(id: String, examTarget: String): StoredUser? {
+        val users = readUsers()
+        val index = users.indexOfFirst { it.id == id }
+        if (index == -1) return null
+
+        val updatedUser = users[index].copy(examTarget = examTarget)
+        writeUsers(users.toMutableList().apply { set(index, updatedUser) })
+        return updatedUser
+    }
+
     private fun hashPassword(password: String): String {
         val digest = java.security.MessageDigest.getInstance("SHA-256")
         val bytes = digest.digest(password.toByteArray(Charsets.UTF_8))

@@ -38,6 +38,9 @@ class HomeViewModel @Inject constructor(
     val totalQuestions: StateFlow<Int> = repository.totalQuestions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
+    val streakRemindersEnabled: StateFlow<Boolean> = repository.streakRemindersEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     val subjects: List<String> = Curriculum.subjects
 
     val weakConcepts: List<WeakConcept> = listOf(
@@ -69,5 +72,18 @@ class HomeViewModel @Inject constructor(
 
     fun getChapterCount(subject: String): Int {
         return Curriculum.getChapters(subject).size
+    }
+
+    fun updateExamTarget(examTarget: String) {
+        val userId = _currentUser.value?.id ?: return
+        viewModelScope.launch {
+            _currentUser.value = authRepository.updateExamTarget(userId, examTarget) ?: _currentUser.value
+        }
+    }
+
+    fun setStreakRemindersEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setStreakRemindersEnabled(enabled)
+        }
     }
 }

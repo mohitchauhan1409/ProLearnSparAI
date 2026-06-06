@@ -292,7 +292,7 @@ private fun HeroSection(
             Spacer(Modifier.height(16.dp))
 
             Text(
-                "Prolearn Spar AI",
+                "ProLearn AI",
                 fontSize = 42.sp,
                 lineHeight = 43.sp,
                 fontFamily = BricolageGrotesqueFamily,
@@ -321,7 +321,7 @@ private fun HeroSection(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 PremiumStat("Streak", streak.toString(), "days", Modifier.weight(1f))
-                PremiumStat("Spars", totalSessions.toString(), "done", Modifier.weight(1f))
+                PremiumStat("Sessions", totalSessions.toString(), "done", Modifier.weight(1f))
                 PremiumStat("Questions", totalQuestions.toString(), "answered", Modifier.weight(1f))
             }
         }
@@ -418,7 +418,7 @@ private fun FeatureCarousel() {
     val features = remember {
         listOf(
             FeatureCard(
-                eyebrow = "LIVE SPAR",
+                eyebrow = "LIVE SESSION",
                 title = "Argue with the AI",
                 body = "Answer aloud and get pushed with follow-ups like a real tutor.",
                 icon = Icons.Default.Mic,
@@ -438,7 +438,7 @@ private fun FeatureCarousel() {
             FeatureCard(
                 eyebrow = "YOUR MATERIALS",
                 title = "Study from anything",
-                body = "Bring images, PDFs, and YouTube videos into the spar.",
+                body = "Bring images, PDFs, and YouTube videos into the session.",
                 icon = Icons.Default.PictureAsPdf,
                 colors = listOf(Color(0xFFFFF2DA), Color(0xFFFFFFFF), Color(0xFFEAF3FF)),
                 accent = Color(0xFF8C673B),
@@ -456,7 +456,7 @@ private fun FeatureCarousel() {
             FeatureCard(
                 eyebrow = "CURATED PREP",
                 title = "Pick any chapter",
-                body = "Jump into subject-specific spars built for exam-style recall.",
+                body = "Jump into subject-specific sessions built for exam-style recall.",
                 icon = Icons.Default.MenuBook,
                 colors = listOf(Color(0xFFEAF6D8), Color(0xFFFFFFFF), Color(0xFFFFF2DA)),
                 accent = Color(0xFF99703F),
@@ -494,7 +494,7 @@ private fun FeatureCarousel() {
             ) {
                 Column {
                     Text(
-                        "Explore Spar",
+                        "Explore sessions",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = Ink,

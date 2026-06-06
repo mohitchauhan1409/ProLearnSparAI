@@ -34,7 +34,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -42,9 +41,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -484,10 +485,10 @@ private fun NextStepRow(index: Int, text: String) {
 @Composable
 private fun FlashcardDeckSection(cards: List<SessionFlashcard>) {
     Column {
-        SectionTitle("Flashcards from this session")
+        SectionTitle("Flashcards")
         Spacer(Modifier.height(10.dp))
         Text(
-            "Swipe the top card to cycle through your AI-made revision deck.",
+            "Swipe the top card to move through your revision deck.",
             color = SoftInk,
             fontSize = 12.sp,
             lineHeight = 17.sp
@@ -499,50 +500,66 @@ private fun FlashcardDeckSection(cards: List<SessionFlashcard>) {
 
 @Composable
 private fun FlashcardDeck(cards: List<SessionFlashcard>) {
-    val deck = remember(cards) { mutableStateListOf<SessionFlashcard>().apply { addAll(cards) } }
+    var activeIndex by remember(cards) { mutableStateOf(0) }
     val offsetX = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
+    val visibleCount = minOf(4, cards.size)
+
+    LaunchedEffect(cards.size) {
+        if (activeIndex > cards.lastIndex) activeIndex = 0
+    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(312.dp),
+            .height(338.dp)
+            .pointerInput(cards.size, activeIndex) {
+                detectDragGestures(
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        scope.launch {
+                            offsetX.snapTo(offsetX.value + dragAmount.x)
+                        }
+                    },
+                    onDragCancel = {
+                        scope.launch {
+                            offsetX.animateTo(0f, spring(dampingRatio = 0.78f))
+                        }
+                    },
+                    onDragEnd = {
+                        scope.launch {
+                            if (abs(offsetX.value) > 96f && cards.size > 1) {
+                                val direction = if (offsetX.value > 0) 1 else -1
+                                offsetX.animateTo(direction * 560f, spring(dampingRatio = 0.82f))
+                                activeIndex = if (direction < 0) {
+                                    (activeIndex + 1) % cards.size
+                                } else {
+                                    (activeIndex - 1 + cards.size) % cards.size
+                                }
+                                offsetX.snapTo(0f)
+                            } else {
+                                offsetX.animateTo(0f, spring(dampingRatio = 0.78f))
+                            }
+                        }
+                    }
+                )
+            },
         contentAlignment = Alignment.Center
     ) {
-        val visibleCards = deck.take(4)
+        val visibleCards = List(visibleCount) { index ->
+            cards[(activeIndex + index) % cards.size]
+        }
         visibleCards.asReversed().forEachIndexed { reverseIndex, card ->
             val stackIndex = visibleCards.lastIndex - reverseIndex
             val isTop = stackIndex == 0
             FlashcardStackCard(
                 card = card,
                 stackIndex = stackIndex,
+                cardNumber = (activeIndex + stackIndex) % cards.size + 1,
+                cardCount = cards.size,
                 offsetX = if (isTop) offsetX.value else 0f,
                 modifier = Modifier
                     .zIndex((10 - stackIndex).toFloat())
-                    .pointerInput(isTop, deck.size) {
-                        if (!isTop) return@pointerInput
-                        detectDragGestures(
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                scope.launch {
-                                    offsetX.snapTo(offsetX.value + dragAmount.x)
-                                }
-                            },
-                            onDragEnd = {
-                                scope.launch {
-                                    if (abs(offsetX.value) > 110f && deck.size > 1) {
-                                        val direction = if (offsetX.value > 0) 1 else -1
-                                        offsetX.animateTo(direction * 520f, spring(dampingRatio = 0.82f))
-                                        val top = deck.removeAt(0)
-                                        deck.add(top)
-                                        offsetX.snapTo(0f)
-                                    } else {
-                                        offsetX.animateTo(0f, spring(dampingRatio = 0.78f))
-                                    }
-                                }
-                            }
-                        )
-                    }
             )
         }
     }
@@ -552,121 +569,130 @@ private fun FlashcardDeck(cards: List<SessionFlashcard>) {
 private fun FlashcardStackCard(
     card: SessionFlashcard,
     stackIndex: Int,
+    cardNumber: Int,
+    cardCount: Int,
     offsetX: Float,
     modifier: Modifier = Modifier
 ) {
-    val colors = listOf(Mint, Sky, Rose, Peach)
-    val baseTint = colors[stackIndex % colors.size]
+    val stackColors = listOf(
+        Color(0xFFFFFFFF),
+        Color(0xFFFF6B6B),
+        Color(0xFF2E93E6),
+        Color(0xFFF8C66A)
+    )
+    val cardColor = stackColors[stackIndex.coerceAtMost(stackColors.lastIndex)]
+    val isTop = stackIndex == 0
+    val contentAlpha = if (isTop) 1f else 0f
     val frontSize = when {
-        card.front.length > 135 -> 13.sp
-        card.front.length > 95 -> 14.sp
-        card.front.length > 62 -> 15.sp
-        else -> 17.sp
+        card.front.length > 120 -> 20.sp
+        card.front.length > 78 -> 23.sp
+        card.front.length > 42 -> 27.sp
+        else -> 34.sp
     }
     val frontLineHeight = when {
-        card.front.length > 135 -> 18.sp
-        card.front.length > 95 -> 20.sp
-        card.front.length > 62 -> 21.sp
-        else -> 23.sp
+        card.front.length > 120 -> 25.sp
+        card.front.length > 78 -> 28.sp
+        card.front.length > 42 -> 32.sp
+        else -> 38.sp
     }
     val backSize = when {
-        card.back.length > 180 -> 11.sp
-        card.back.length > 125 -> 12.sp
-        else -> 13.sp
+        card.back.length > 190 -> 13.sp
+        card.back.length > 125 -> 14.sp
+        else -> 15.sp
     }
     val backLineHeight = when {
-        card.back.length > 180 -> 16.sp
-        card.back.length > 125 -> 17.sp
-        else -> 18.sp
+        card.back.length > 190 -> 19.sp
+        card.back.length > 125 -> 21.sp
+        else -> 23.sp
     }
     val frontMaxLines = when {
-        card.front.length > 95 -> 4
-        else -> 3
+        card.front.length > 78 -> 3
+        else -> 2
     }
     val backMaxLines = when {
-        card.back.length > 125 -> 4
-        else -> 5
+        card.back.length > 160 -> 5
+        else -> 6
     }
-    val isTop = stackIndex == 0
 
     Column(
         modifier = modifier
             .fillMaxWidth(0.94f)
-            .height(256.dp)
+            .height(296.dp)
             .graphicsLayer {
-                translationX = offsetX + stackIndex * 16f
-                translationY = stackIndex * 13f
-                scaleX = 1f - stackIndex * 0.055f
-                scaleY = 1f - stackIndex * 0.055f
-                rotationZ = if (isTop) offsetX / 34f else -stackIndex * 1.5f
-                alpha = 1f - stackIndex * 0.07f
+                translationX = offsetX
+                translationY = -stackIndex * 14f
+                scaleX = 1f - stackIndex * 0.045f
+                scaleY = 1f - stackIndex * 0.045f
+                rotationZ = if (isTop) offsetX / 34f else -stackIndex * 1.8f
+                alpha = 1f - stackIndex * 0.04f
             }
-            .clip(RoundedCornerShape(8.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(Color.White, Color.White.copy(alpha = 0.94f), baseTint)
-                )
-            )
+            .clip(RoundedCornerShape(28.dp))
+            .background(cardColor)
             .border(
                 1.dp,
-                if (isTop) Moss.copy(alpha = 0.34f) else Color.White.copy(alpha = 0.82f),
-                RoundedCornerShape(8.dp)
+                if (isTop) Color(0xFFD8E4DA) else Color.White.copy(alpha = 0.72f),
+                RoundedCornerShape(28.dp)
             )
-            .padding(16.dp)
+            .padding(horizontal = 24.dp, vertical = 22.dp)
+            .graphicsLayer { alpha = if (isTop) 1f else 0.96f }
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(30.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.78f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.School, null, tint = Moss, modifier = Modifier.size(16.dp))
+        Column(modifier = Modifier.graphicsLayer { alpha = contentAlpha }) {
+            Row(verticalAlignment = Alignment.Top) {
+                Text(
+                    card.front,
+                    color = Ink,
+                    fontSize = frontSize,
+                    lineHeight = frontLineHeight,
+                    fontWeight = FontWeight.SemiBold,
+                    fontStyle = FontStyle.Italic,
+                    maxLines = frontMaxLines,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(12.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(Mint)
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        "$cardNumber/$cardCount",
+                        color = Moss,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
-            Spacer(Modifier.width(8.dp))
+
+            Spacer(Modifier.height(14.dp))
+
             Text(
-                card.tag.uppercase(),
+                card.tag.ifBlank { "Review note" },
                 color = Moss,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f),
+                fontSize = 15.sp,
+                lineHeight = 19.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontStyle = FontStyle.Italic,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+
+            Spacer(Modifier.height(26.dp))
+
             Text(
-                "${stackIndex + 1}",
-                color = SoftInk.copy(alpha = 0.58f),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
+                card.back,
+                color = SoftInk,
+                fontSize = backSize,
+                lineHeight = backLineHeight,
+                fontStyle = FontStyle.Italic,
+                maxLines = backMaxLines,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
             )
         }
-        Spacer(Modifier.height(13.dp))
-        Text(
-            card.front,
-            color = Ink,
-            fontSize = frontSize,
-            lineHeight = frontLineHeight,
-            fontWeight = FontWeight.Bold,
-            maxLines = frontMaxLines,
-            overflow = TextOverflow.Ellipsis
-        )
-        Spacer(Modifier.height(11.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(Line)
-        )
-        Spacer(Modifier.height(10.dp))
-        Text(
-            card.back,
-            color = SoftInk,
-            fontSize = backSize,
-            lineHeight = backLineHeight,
-            maxLines = backMaxLines,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }
 

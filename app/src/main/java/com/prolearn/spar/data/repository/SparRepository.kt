@@ -35,7 +35,6 @@ class SparRepository @Inject constructor(
 ) {
     private val reportScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    val hasLaunched: Flow<Boolean> = sessionDataStore.hasLaunched
     val streak: Flow<Int> = sessionDataStore.streak
     val bestStreak: Flow<Int> = sessionDataStore.bestStreak
     val lastSparDate: Flow<String> = sessionDataStore.lastSparDate
@@ -43,6 +42,7 @@ class SparRepository @Inject constructor(
     val totalSessions: Flow<Int> = sessionDataStore.totalSessions
     val totalQuestions: Flow<Int> = sessionDataStore.totalQuestions
     val selectedVoice: Flow<String> = sessionDataStore.selectedVoice
+    val streakRemindersEnabled: Flow<Boolean> = sessionDataStore.streakRemindersEnabled
     private val _lastCompletedSession = MutableStateFlow<Session?>(null)
     val lastCompletedSession: StateFlow<Session?> = _lastCompletedSession.asStateFlow()
 
@@ -141,15 +141,15 @@ class SparRepository @Inject constructor(
         }
     }
 
-    suspend fun setHasLaunched() {
-        sessionDataStore.setHasLaunched()
-    }
-
     suspend fun getConceptMastery(): String {
         return sessionDataStore.getConceptMastery()
     }
 
     suspend fun setConceptMastery(json: String) {
         sessionDataStore.setConceptMastery(json)
+    }
+
+    suspend fun setStreakRemindersEnabled(enabled: Boolean) {
+        sessionDataStore.setStreakRemindersEnabled(enabled)
     }
 }

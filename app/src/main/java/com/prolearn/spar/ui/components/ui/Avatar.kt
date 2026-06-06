@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.prolearn.spar.ui.theme.BricolageGrotesqueFamily
 import com.prolearn.spar.ui.theme.ProLearnColors
 
 @Composable
@@ -36,6 +37,7 @@ fun Avatar(
             text = initials,
             fontSize = fontSize.sp,
             fontWeight = FontWeight.SemiBold,
+            fontFamily = BricolageGrotesqueFamily,
             color = textColor
         )
     }

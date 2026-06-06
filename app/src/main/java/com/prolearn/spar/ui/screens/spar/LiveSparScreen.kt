@@ -43,9 +43,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PictureAsPdf
@@ -90,6 +92,7 @@ import com.prolearn.spar.domain.model.Message
 import com.prolearn.spar.domain.model.SparConfig
 import com.prolearn.spar.domain.model.SparState
 import com.prolearn.spar.ui.components.spar.VoiceWaveform
+import com.prolearn.spar.ui.theme.BricolageGrotesqueFamily
 import kotlinx.coroutines.delay
 
 private val DeepInk = Color(0xFF08110F)
@@ -103,6 +106,11 @@ private val GlassStrong = Color(0x2BFFFFFF)
 private val GlassStroke = Color(0x4DFFFFFF)
 private val SoftText = Color(0xFFDCE6DD)
 private val MutedText = Color(0xFF9DAAA1)
+private val LightPageBg = Color(0xFFF8FAF7)
+private val LightPanel = Color(0xC9FFFFFF)
+private val LightGlass = Color(0xB3FFFFFF)
+private val LightStroke = Color(0xDFFFFFFF)
+private val LightSoftText = Color(0xFF53615A)
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -123,6 +131,7 @@ fun LiveSparScreen(
     val micPermission = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
     var showTypeDialog by remember { mutableStateOf(false) }
     var showYoutubeDialog by remember { mutableStateOf(false) }
+    var isLightTheme by remember { mutableStateOf(false) }
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
@@ -168,13 +177,17 @@ fun LiveSparScreen(
             .fillMaxSize()
             .background(
                 Brush.linearGradient(
-                    colors = listOf(DeepInk, Color(0xFF10231D), Color(0xFF161915)),
+                    colors = if (isLightTheme) {
+                        listOf(LightPageBg, Color(0xFFF2F7F4), Color(0xFFFFFBF5))
+                    } else {
+                        listOf(DeepInk, Color(0xFF10231D), Color(0xFF161915))
+                    },
                     start = Offset.Zero,
                     end = Offset(900f, 1500f)
                 )
             )
     ) {
-        AmbientGlow()
+        AmbientGlow(isLightTheme = isLightTheme)
 
         Column(
             modifier = Modifier
@@ -185,6 +198,8 @@ fun LiveSparScreen(
                 config = config,
                 timerFormatted = timerFormatted,
                 questionCounter = viewModel.questionCounter,
+                isLightTheme = isLightTheme,
+                onToggleTheme = { isLightTheme = !isLightTheme },
                 onEndSession = { viewModel.endSession() }
             )
 
@@ -199,13 +214,13 @@ fun LiveSparScreen(
             ) {
                 if (partialTranscript.isNotBlank()) {
                     item(key = "partial") {
-                        PartialTranscriptBubble(text = partialTranscript)
+                        PartialTranscriptBubble(text = partialTranscript, isLightTheme = isLightTheme)
                     }
                 }
 
                 if (state == SparState.AiThinking || state == SparState.AiEvaluating) {
                     item(key = "typing") {
-                        TutorThinkingCard(config = config)
+                        TutorThinkingCard(config = config, isLightTheme = isLightTheme)
                     }
                 }
 
@@ -213,7 +228,7 @@ fun LiveSparScreen(
                     items = messages.reversed(),
                     key = { msg -> "${msg.timestamp}_${msg.role}" }
                 ) { message ->
-                    GlassMessageBubble(message = message, config = config)
+                    GlassMessageBubble(message = message, config = config, isLightTheme = isLightTheme)
                 }
             }
         }
@@ -224,7 +239,11 @@ fun LiveSparScreen(
                 .fillMaxWidth()
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color.Transparent, DeepInk.copy(alpha = 0.92f), DeepInk)
+                        if (isLightTheme) {
+                            listOf(Color.Transparent, LightPageBg.copy(alpha = 0.94f), LightPageBg)
+                        } else {
+                            listOf(Color.Transparent, DeepInk.copy(alpha = 0.92f), DeepInk)
+                        }
                     )
                 )
                 .navigationBarsPadding()
@@ -232,6 +251,7 @@ fun LiveSparScreen(
         ) {
             if (!micPermission.status.isGranted) {
                 MicPermissionCard(
+                    isLightTheme = isLightTheme,
                     showRationale = micPermission.status.shouldShowRationale,
                     onRequestPermission = { micPermission.launchPermissionRequest() }
                 )
@@ -241,6 +261,7 @@ fun LiveSparScreen(
                     statusMessage = statusMessage,
                     audioLevel = audioLevel,
                     isRecognizerActive = isRecognizerActive,
+                    isLightTheme = isLightTheme,
                     onType = { showTypeDialog = true },
                     onPickImage = { imagePicker.launch("image/*") },
                     onPickDocument = { documentPicker.launch(arrayOf("application/pdf")) },
@@ -255,6 +276,7 @@ fun LiveSparScreen(
 
     TextComposerDialog(
         visible = showTypeDialog,
+        isLightTheme = isLightTheme,
         title = "Type to tutor",
         placeholder = "Ask anything, paste a question, or explain your doubt...",
         action = "Send",
@@ -266,6 +288,7 @@ fun LiveSparScreen(
     )
     TextComposerDialog(
         visible = showYoutubeDialog,
+        isLightTheme = isLightTheme,
         title = "Study YouTube video",
         placeholder = "Paste YouTube link, topic, or timestamp...",
         action = "Study",
@@ -278,27 +301,27 @@ fun LiveSparScreen(
 }
 
 @Composable
-private fun AmbientGlow() {
+private fun AmbientGlow(isLightTheme: Boolean) {
     Box(
         Modifier
             .size(260.dp)
             .offset(x = (-96).dp, y = 88.dp)
             .clip(CircleShape)
-            .background(MintGlow.copy(alpha = 0.12f))
+            .background(MintGlow.copy(alpha = if (isLightTheme) 0.58f else 0.12f))
     )
     Box(
         Modifier
             .size(230.dp)
             .offset(x = 238.dp, y = 22.dp)
             .clip(CircleShape)
-            .background(SkyMist.copy(alpha = 0.12f))
+            .background(SkyMist.copy(alpha = if (isLightTheme) 0.68f else 0.12f))
     )
     Box(
         Modifier
             .size(190.dp)
             .offset(x = 252.dp, y = 520.dp)
             .clip(CircleShape)
-            .background(BlushMist.copy(alpha = 0.09f))
+            .background(BlushMist.copy(alpha = if (isLightTheme) 0.52f else 0.09f))
     )
 }
 
@@ -307,8 +330,12 @@ private fun LiveTopBar(
     config: SparConfig,
     timerFormatted: String,
     questionCounter: String,
+    isLightTheme: Boolean,
+    onToggleTheme: () -> Unit,
     onEndSession: () -> Unit
 ) {
+    val primaryText = if (isLightTheme) Ink else Color.White
+    val secondaryText = if (isLightTheme) LightSoftText else MutedText
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -322,13 +349,13 @@ private fun LiveTopBar(
                 modifier = Modifier
                     .size(46.dp)
                     .clip(CircleShape)
-                    .border(1.dp, MintGlow.copy(alpha = 0.5f), CircleShape)
+                    .border(1.dp, if (isLightTheme) Color.White.copy(alpha = 0.9f) else MintGlow.copy(alpha = 0.5f), CircleShape)
             )
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     config.voiceName.cleanTeacherName(),
-                    color = Color.White,
+                    color = primaryText,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -336,26 +363,37 @@ private fun LiveTopBar(
                 )
                 Text(
                     "${config.sessionType} · ${config.difficulty} · $timerFormatted",
-                    color = MutedText,
+                    color = secondaryText,
                     fontSize = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
+            ThemeToggleButton(isLightTheme = isLightTheme, onClick = onToggleTheme)
+            Spacer(Modifier.width(8.dp))
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(100.dp))
-                    .background(Color(0xFFFFE1E1).copy(alpha = 0.13f))
-                    .border(1.dp, Color(0xFFFFB2B2).copy(alpha = 0.34f), RoundedCornerShape(100.dp))
+                    .background(
+                        if (isLightTheme) Color(0xFFFFECEC).copy(alpha = 0.92f)
+                        else Color(0xFFFFE1E1).copy(alpha = 0.13f)
+                    )
+                    .border(
+                        1.dp,
+                        if (isLightTheme) Color(0xFFFFB2B2).copy(alpha = 0.62f)
+                        else Color(0xFFFFB2B2).copy(alpha = 0.34f),
+                        RoundedCornerShape(100.dp)
+                    )
                     .clickable { onEndSession() }
                     .padding(horizontal = 11.dp, vertical = 7.dp)
             ) {
+                val endTint = if (isLightTheme) Color(0xFFD14343) else Color(0xFFFFD7D7)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Close, null, tint = Color(0xFFFFD7D7), modifier = Modifier.size(13.dp))
+                    Icon(Icons.Default.Close, null, tint = endTint, modifier = Modifier.size(13.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(
                         "End",
-                        color = Color(0xFFFFD7D7),
+                        color = endTint,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -366,28 +404,48 @@ private fun LiveTopBar(
         Spacer(Modifier.height(12.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MetaChip(Icons.Default.School, config.subject)
-            MetaChip(Icons.Default.AutoAwesome, if (config.chapter == "Generic") "Open chapter" else config.chapter)
-            MetaChip(Icons.Default.GraphicEq, questionCounter)
+            MetaChip(Icons.Default.School, config.subject, isLightTheme)
+            MetaChip(Icons.Default.AutoAwesome, if (config.chapter == "Generic") "Open chapter" else config.chapter, isLightTheme)
+            MetaChip(Icons.Default.GraphicEq, questionCounter, isLightTheme)
         }
     }
 }
 
 @Composable
-private fun MetaChip(icon: ImageVector, label: String) {
+private fun ThemeToggleButton(isLightTheme: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(if (isLightTheme) Color.White.copy(alpha = 0.78f) else Glass)
+            .border(1.dp, if (isLightTheme) Color.White.copy(alpha = 0.9f) else GlassStroke, CircleShape)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = if (isLightTheme) Icons.Default.DarkMode else Icons.Default.LightMode,
+            contentDescription = if (isLightTheme) "Switch to dark theme" else "Switch to light theme",
+            tint = if (isLightTheme) Ink else MintGlow,
+            modifier = Modifier.size(17.dp)
+        )
+    }
+}
+
+@Composable
+private fun MetaChip(icon: ImageVector, label: String, isLightTheme: Boolean) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(100.dp))
-            .background(Glass)
-            .border(1.dp, GlassStroke, RoundedCornerShape(100.dp))
+            .background(if (isLightTheme) Color.White.copy(alpha = 0.72f) else Glass)
+            .border(1.dp, if (isLightTheme) Color.White.copy(alpha = 0.9f) else GlassStroke, RoundedCornerShape(100.dp))
             .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, null, tint = MintGlow, modifier = Modifier.size(13.dp))
+        Icon(icon, null, tint = if (isLightTheme) Moss else MintGlow, modifier = Modifier.size(13.dp))
         Spacer(Modifier.width(5.dp))
         Text(
             label,
-            color = SoftText,
+            color = if (isLightTheme) Ink else SoftText,
             fontSize = 11.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -396,7 +454,7 @@ private fun MetaChip(icon: ImageVector, label: String) {
 }
 
 @Composable
-private fun GlassMessageBubble(message: Message, config: SparConfig) {
+private fun GlassMessageBubble(message: Message, config: SparConfig, isLightTheme: Boolean) {
     val isQueued = message.role == "queued"
     val isUser = message.role == "user" || isQueued
     val bubbleShape = if (isUser) {
@@ -404,6 +462,7 @@ private fun GlassMessageBubble(message: Message, config: SparConfig) {
     } else {
         RoundedCornerShape(8.dp, 22.dp, 22.dp, 22.dp)
     }
+    val labelTint = if (isLightTheme) Moss else MintGlow
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -418,6 +477,11 @@ private fun GlassMessageBubble(message: Message, config: SparConfig) {
                 modifier = Modifier
                     .size(34.dp)
                     .clip(CircleShape)
+                    .border(
+                        1.dp,
+                        if (isLightTheme) Color.White.copy(alpha = 0.92f) else Color.Transparent,
+                        CircleShape
+                    )
             )
             Spacer(Modifier.width(9.dp))
         }
@@ -428,17 +492,17 @@ private fun GlassMessageBubble(message: Message, config: SparConfig) {
                 .clip(bubbleShape)
                 .background(
                     when {
-                        isQueued -> Glass
+                        isQueued -> if (isLightTheme) LightGlass else Glass
                         isUser -> Moss
-                        else -> GlassStrong
+                        else -> if (isLightTheme) Color.White.copy(alpha = 0.78f) else GlassStrong
                     }
                 )
                 .border(
                     1.dp,
                     when {
-                        isQueued -> MintGlow.copy(alpha = 0.22f)
-                        isUser -> MintGlow.copy(alpha = 0.32f)
-                        else -> GlassStroke
+                        isQueued -> if (isLightTheme) Moss.copy(alpha = 0.16f) else MintGlow.copy(alpha = 0.22f)
+                        isUser -> if (isLightTheme) Color.White.copy(alpha = 0.42f) else MintGlow.copy(alpha = 0.32f)
+                        else -> if (isLightTheme) LightStroke else GlassStroke
                     },
                     bubbleShape
                 )
@@ -446,11 +510,11 @@ private fun GlassMessageBubble(message: Message, config: SparConfig) {
         ) {
             if (isQueued) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Pending, null, tint = MintGlow, modifier = Modifier.size(12.dp))
+                    Icon(Icons.Default.Pending, null, tint = labelTint, modifier = Modifier.size(12.dp))
                     Spacer(Modifier.width(5.dp))
                     Text(
                         "QUEUED",
-                        color = MintGlow,
+                        color = labelTint,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
@@ -461,7 +525,7 @@ private fun GlassMessageBubble(message: Message, config: SparConfig) {
             if (message.isHint) {
                 Text(
                     "HINT",
-                    color = MintGlow,
+                    color = labelTint,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
@@ -471,9 +535,9 @@ private fun GlassMessageBubble(message: Message, config: SparConfig) {
             Text(
                 message.text,
                 color = when {
-                    isQueued -> SoftText.copy(alpha = 0.84f)
+                    isQueued -> if (isLightTheme) LightSoftText else SoftText.copy(alpha = 0.84f)
                     isUser -> Color.White
-                    else -> SoftText
+                    else -> if (isLightTheme) Ink else SoftText
                 },
                 fontSize = 14.sp,
                 lineHeight = 20.sp
@@ -483,7 +547,7 @@ private fun GlassMessageBubble(message: Message, config: SparConfig) {
 }
 
 @Composable
-private fun PartialTranscriptBubble(text: String) {
+private fun PartialTranscriptBubble(text: String, isLightTheme: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End
@@ -492,8 +556,12 @@ private fun PartialTranscriptBubble(text: String) {
             modifier = Modifier
                 .fillMaxWidth(0.84f)
                 .clip(RoundedCornerShape(22.dp, 8.dp, 22.dp, 22.dp))
-                .background(Moss.copy(alpha = 0.72f))
-                .border(1.dp, MintGlow.copy(alpha = 0.28f), RoundedCornerShape(22.dp, 8.dp, 22.dp, 22.dp))
+                .background(Moss.copy(alpha = if (isLightTheme) 0.86f else 0.72f))
+                .border(
+                    1.dp,
+                    if (isLightTheme) Color.White.copy(alpha = 0.5f) else MintGlow.copy(alpha = 0.28f),
+                    RoundedCornerShape(22.dp, 8.dp, 22.dp, 22.dp)
+                )
                 .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
             Text(
@@ -508,7 +576,7 @@ private fun PartialTranscriptBubble(text: String) {
 }
 
 @Composable
-private fun TutorThinkingCard(config: SparConfig) {
+private fun TutorThinkingCard(config: SparConfig, isLightTheme: Boolean) {
     val infiniteTransition = rememberInfiniteTransition(label = "thinking")
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -521,13 +589,22 @@ private fun TutorThinkingCard(config: SparConfig) {
             modifier = Modifier
                 .size(34.dp)
                 .clip(CircleShape)
+                .border(
+                    1.dp,
+                    if (isLightTheme) Color.White.copy(alpha = 0.92f) else Color.Transparent,
+                    CircleShape
+                )
         )
         Spacer(Modifier.width(9.dp))
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp, 22.dp, 22.dp, 22.dp))
-                .background(GlassStrong)
-                .border(1.dp, GlassStroke, RoundedCornerShape(8.dp, 22.dp, 22.dp, 22.dp))
+                .background(if (isLightTheme) LightGlass else GlassStrong)
+                .border(
+                    1.dp,
+                    if (isLightTheme) LightStroke else GlassStroke,
+                    RoundedCornerShape(8.dp, 22.dp, 22.dp, 22.dp)
+                )
                 .padding(horizontal = 14.dp, vertical = 13.dp),
             horizontalArrangement = Arrangement.spacedBy(5.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -547,7 +624,7 @@ private fun TutorThinkingCard(config: SparConfig) {
                         .size(7.dp)
                         .offset(y = offset.dp)
                         .clip(CircleShape)
-                        .background(MintGlow)
+                        .background(if (isLightTheme) Moss else MintGlow)
                 )
             }
         }
@@ -560,6 +637,7 @@ private fun TutorControlDock(
     statusMessage: String,
     audioLevel: Float,
     isRecognizerActive: Boolean,
+    isLightTheme: Boolean,
     onType: () -> Unit,
     onPickImage: () -> Unit,
     onPickDocument: () -> Unit,
@@ -580,8 +658,8 @@ private fun TutorControlDock(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(GlassStrong, RoundedCornerShape(26.dp))
-            .border(1.dp, GlassStroke, RoundedCornerShape(26.dp))
+            .background(if (isLightTheme) LightPanel else GlassStrong, RoundedCornerShape(26.dp))
+            .border(1.dp, if (isLightTheme) LightStroke else GlassStroke, RoundedCornerShape(26.dp))
             .padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -590,16 +668,24 @@ private fun TutorControlDock(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFFFFE1E1).copy(alpha = 0.16f))
-                    .border(1.dp, Color(0xFFFFA3A3).copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                    .background(Color(0xFFFFE1E1).copy(alpha = if (isLightTheme) 0.68f else 0.16f))
+                    .border(
+                        1.dp,
+                        Color(0xFFFFA3A3).copy(alpha = if (isLightTheme) 0.46f else 0.25f),
+                        RoundedCornerShape(18.dp)
+                    )
                     .clickable { onRetry() }
                     .padding(horizontal = 12.dp, vertical = 9.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("${state.message} · Tap to retry", color = Color(0xFFFFD2D2), fontSize = 12.sp)
+                Text(
+                    "${state.message} · Tap to retry",
+                    color = if (isLightTheme) Color(0xFFC64141) else Color(0xFFFFD2D2),
+                    fontSize = 12.sp
+                )
             }
         } else {
-            StatePill(state = state, statusMessage = statusMessage)
+            StatePill(state = state, statusMessage = statusMessage, isLightTheme = isLightTheme)
             Spacer(Modifier.height(6.dp))
             VoiceWaveform(
                 audioLevel = audioLevel,
@@ -620,19 +706,20 @@ private fun TutorControlDock(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            DockAction(Icons.Default.Edit, "Type", onType)
-            DockAction(Icons.Default.Image, "Image", onPickImage)
+            DockAction(Icons.Default.Edit, "Type", isLightTheme, onType)
+            DockAction(Icons.Default.Image, "Image", isLightTheme, onPickImage)
             MicDockAction(
                 size = micSize,
                 canTap = canTap,
                 isListening = isListening,
                 isRecognizerActive = isRecognizerActive,
+                isLightTheme = isLightTheme,
                 onClick = {
                     if (isRecognizerActive) onStopListening() else onStartListening()
                 }
             )
-            DockAction(Icons.Default.PictureAsPdf, "PDF", onPickDocument)
-            DockAction(Icons.Default.PlayCircleFilled, "YouTube", onYoutube)
+            DockAction(Icons.Default.PictureAsPdf, "PDF", isLightTheme, onPickDocument)
+            DockAction(Icons.Default.PlayCircleFilled, "YouTube", isLightTheme, onYoutube)
         }
     }
 }
@@ -643,18 +730,30 @@ private fun MicDockAction(
     canTap: Boolean,
     isListening: Boolean,
     isRecognizerActive: Boolean,
+    isLightTheme: Boolean,
     onClick: () -> Unit
 ) {
     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(68.dp)) {
-        ListeningPulse(visible = isListening)
+        ListeningPulse(visible = isListening, isLightTheme = isLightTheme)
         Box(
             modifier = Modifier
                 .size(size)
                 .clip(CircleShape)
-                .background(if (isListening) MintGlow else if (canTap) Color.White else Glass)
+                .background(
+                    when {
+                        isListening -> MintGlow
+                        canTap -> Color.White
+                        isLightTheme -> Color.White.copy(alpha = 0.5f)
+                        else -> Glass
+                    }
+                )
                 .border(
                     width = 1.dp,
-                    color = if (canTap) MintGlow.copy(alpha = 0.55f) else GlassStroke,
+                    color = when {
+                        canTap -> if (isLightTheme) Moss.copy(alpha = 0.42f) else MintGlow.copy(alpha = 0.55f)
+                        isLightTheme -> LightStroke
+                        else -> GlassStroke
+                    },
                     shape = CircleShape
                 )
                 .then(if (canTap) Modifier.clickable { onClick() } else Modifier),
@@ -663,7 +762,7 @@ private fun MicDockAction(
             Icon(
                 imageVector = if (isRecognizerActive) Icons.Default.MicOff else Icons.Default.Mic,
                 contentDescription = if (isRecognizerActive) "Stop listening" else "Start speaking",
-                tint = if (isListening) DeepInk else if (canTap) Ink else MutedText,
+                tint = if (isListening) DeepInk else if (canTap) Ink else if (isLightTheme) LightSoftText else MutedText,
                 modifier = Modifier.size(25.dp)
             )
         }
@@ -674,23 +773,24 @@ private fun MicDockAction(
 private fun DockAction(
     icon: ImageVector,
     label: String,
+    isLightTheme: Boolean,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .size(38.dp)
             .clip(CircleShape)
-            .background(Glass)
-            .border(1.dp, GlassStroke, CircleShape)
+            .background(if (isLightTheme) Color.White.copy(alpha = 0.72f) else Glass)
+            .border(1.dp, if (isLightTheme) LightStroke else GlassStroke, CircleShape)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = label, tint = SoftText, modifier = Modifier.size(18.dp))
+        Icon(icon, contentDescription = label, tint = if (isLightTheme) Ink else SoftText, modifier = Modifier.size(18.dp))
     }
 }
 
 @Composable
-private fun ListeningPulse(visible: Boolean) {
+private fun ListeningPulse(visible: Boolean, isLightTheme: Boolean) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val scale by infiniteTransition.animateFloat(
         initialValue = 1f,
@@ -710,13 +810,13 @@ private fun ListeningPulse(visible: Boolean) {
                 .size(68.dp)
                 .scale(scale)
                 .clip(CircleShape)
-                .background(MintGlow.copy(alpha = alpha))
+                .background((if (isLightTheme) Moss else MintGlow).copy(alpha = if (isLightTheme) alpha * 0.7f else alpha))
         )
     }
 }
 
 @Composable
-private fun StatePill(state: SparState, statusMessage: String) {
+private fun StatePill(state: SparState, statusMessage: String, isLightTheme: Boolean) {
     val (text, icon) = when (state) {
         is SparState.AiThinking -> statusMessage
             .ifBlank { "Preparing the first move..." } to Icons.Default.Pending
@@ -739,19 +839,20 @@ private fun StatePill(state: SparState, statusMessage: String) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(100.dp))
-            .background(Glass)
-            .border(1.dp, GlassStroke, RoundedCornerShape(100.dp))
+            .background(if (isLightTheme) Color.White.copy(alpha = 0.72f) else Glass)
+            .border(1.dp, if (isLightTheme) LightStroke else GlassStroke, RoundedCornerShape(100.dp))
             .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, null, tint = MintGlow, modifier = Modifier.size(14.dp))
+        Icon(icon, null, tint = if (isLightTheme) Moss else MintGlow, modifier = Modifier.size(14.dp))
         Spacer(Modifier.width(7.dp))
-        Text(text, color = SoftText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+        Text(text, color = if (isLightTheme) Ink else SoftText, fontSize = 11.sp, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
 private fun MicPermissionCard(
+    isLightTheme: Boolean,
     showRationale: Boolean,
     onRequestPermission: () -> Unit
 ) {
@@ -759,19 +860,24 @@ private fun MicPermissionCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(28.dp))
-            .background(GlassStrong)
-            .border(1.dp, GlassStroke, RoundedCornerShape(28.dp))
+            .background(if (isLightTheme) LightPanel else GlassStrong)
+            .border(1.dp, if (isLightTheme) LightStroke else GlassStroke, RoundedCornerShape(28.dp))
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(Icons.Default.MicOff, null, tint = MintGlow, modifier = Modifier.size(30.dp))
+        Icon(Icons.Default.MicOff, null, tint = if (isLightTheme) Moss else MintGlow, modifier = Modifier.size(30.dp))
         Spacer(Modifier.height(10.dp))
-        Text("Microphone access needed", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "Microphone access needed",
+            color = if (isLightTheme) Ink else Color.White,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold
+        )
         Spacer(Modifier.height(6.dp))
         Text(
             if (showRationale) "Allow mic access so the tutor can hear your answers."
-            else "Tap below to enable voice sparring.",
-            color = MutedText,
+            else "Tap below to enable voice sessions.",
+            color = if (isLightTheme) LightSoftText else MutedText,
             fontSize = 13.sp,
             lineHeight = 18.sp,
             textAlign = TextAlign.Center
@@ -805,6 +911,7 @@ private fun String.cleanTeacherName(): String =
 @Composable
 private fun TextComposerDialog(
     visible: Boolean,
+    isLightTheme: Boolean,
     title: String,
     placeholder: String,
     action: String,
@@ -815,18 +922,19 @@ private fun TextComposerDialog(
     var text by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF10231D),
+        containerColor = if (isLightTheme) Color.White else Color(0xFF10231D),
         title = {
-            Text(title, color = Color.White, fontWeight = FontWeight.Bold)
+            Text(title, color = if (isLightTheme) Ink else Color.White, fontWeight = FontWeight.Bold)
         },
         text = {
             BasicTextField(
                 value = text,
                 onValueChange = { text = it },
                 textStyle = androidx.compose.ui.text.TextStyle(
-                    color = Color.White,
+                    color = if (isLightTheme) Ink else Color.White,
                     fontSize = 15.sp,
-                    lineHeight = 21.sp
+                    lineHeight = 21.sp,
+                    fontFamily = BricolageGrotesqueFamily
                 ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = {
@@ -836,13 +944,22 @@ private fun TextComposerDialog(
                     .fillMaxWidth()
                     .height(132.dp)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Glass)
-                    .border(1.dp, GlassStroke, RoundedCornerShape(18.dp))
+                    .background(if (isLightTheme) Color(0xFFF5F8F4).copy(alpha = 0.92f) else Glass)
+                    .border(
+                        1.dp,
+                        if (isLightTheme) Color(0xFFDDE7DE) else GlassStroke,
+                        RoundedCornerShape(18.dp)
+                    )
                     .padding(14.dp),
                 decorationBox = { innerTextField ->
                     Box {
                         if (text.isBlank()) {
-                            Text(placeholder, color = MutedText, fontSize = 14.sp, lineHeight = 20.sp)
+                            Text(
+                                placeholder,
+                                color = if (isLightTheme) LightSoftText else MutedText,
+                                fontSize = 14.sp,
+                                lineHeight = 20.sp
+                            )
                         }
                         innerTextField()
                     }
@@ -853,12 +970,12 @@ private fun TextComposerDialog(
             TextButton(
                 onClick = { if (text.isNotBlank()) onSubmit(text) }
             ) {
-                Text(action, color = MintGlow, fontWeight = FontWeight.Bold)
+                Text(action, color = if (isLightTheme) Moss else MintGlow, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = MutedText)
+                Text("Cancel", color = if (isLightTheme) LightSoftText else MutedText)
             }
         }
     )

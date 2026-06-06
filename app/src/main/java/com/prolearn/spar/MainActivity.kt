@@ -17,8 +17,7 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Must be called before super.onCreate — replaces the splash theme with the app theme
-        // and eliminates the white window flash on launch
+        // Must be called before super.onCreate so the system splash hands off cleanly.
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

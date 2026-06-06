@@ -55,6 +55,10 @@ class AuthRepository @Inject constructor(
         val stored = userDatabase.getUserById(userId) ?: return null
         return stored.toDomainUser()
     }
+
+    suspend fun updateExamTarget(userId: String, examTarget: String): User? {
+        return userDatabase.updateExamTarget(userId, examTarget)?.toDomainUser()
+    }
 }
 
 // ─── Extension: StoredUser → domain User ─────────────────────────────────────

@@ -230,7 +230,7 @@ fun SparSetupScreen(
                 .padding(horizontal = 18.dp, vertical = 16.dp)
         ) {
             ProLearnButton(
-                text = "Start spar session",
+                text = "Start session",
                 enabled = viewModel.isValid,
                 onClick = {
                     val config = SparConfig(
@@ -305,7 +305,7 @@ private fun TopBar(onNavigateBack: () -> Unit) {
             Icon(Icons.AutoMirrored.Default.ArrowBack, "Back", tint = Ink)
         }
         Text(
-            "New spar session",
+            "New study session",
             fontSize = 17.sp,
             fontWeight = FontWeight.SemiBold,
             color = Ink

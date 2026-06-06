@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Base app theme — dark window background prevents any white flash on cold start -->
+    <!-- Base app theme matches the light Compose splash to avoid a cold-start flash. -->
     <style name="Theme.ProLearnSparAI" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowBackground">@color/splash_bg</item>
     </style>
 
-    <!-- Android 12+ SplashScreen API theme — shows the logo the instant the user taps the icon -->
+    <!-- Android 12+ system splash: keep it visually aligned with our animated Compose splash. -->
     <style name="Theme.ProLearnSparAI.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splash_bg</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>

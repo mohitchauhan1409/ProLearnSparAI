@@ -24,17 +24,13 @@ class SessionDataStore @Inject constructor(
         val SESSIONS_JSON_KEY = stringPreferencesKey("sessions_json")
         val STREAK_KEY = intPreferencesKey("streak_days")
         val BEST_STREAK_KEY = intPreferencesKey("best_streak_days")
-        val HAS_LAUNCHED_KEY = booleanPreferencesKey("has_launched")
         val LAST_SPAR_DATE_KEY = stringPreferencesKey("last_spar_date")
         val CONCEPT_MASTERY_KEY = stringPreferencesKey("concept_mastery_json")
         val SELECTED_VOICE_KEY = stringPreferencesKey("selected_voice")
+        val STREAK_REMINDERS_KEY = booleanPreferencesKey("streak_reminders_enabled")
         val LAST_7_DAYS_KEY = stringPreferencesKey("last_7_days_json")
         val TOTAL_SESSIONS_KEY = intPreferencesKey("total_sessions")
         val TOTAL_QUESTIONS_KEY = intPreferencesKey("total_questions")
-    }
-
-    val hasLaunched: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[HAS_LAUNCHED_KEY] ?: false
     }
 
     val streak: Flow<Int> = context.dataStore.data.map { prefs ->
@@ -65,8 +61,12 @@ class SessionDataStore @Inject constructor(
         prefs[SELECTED_VOICE_KEY] ?: "EXAVITQu4vr4xnSDxMaL"
     }
 
-    suspend fun setHasLaunched() {
-        context.dataStore.edit { prefs -> prefs[HAS_LAUNCHED_KEY] = true }
+    val streakRemindersEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[STREAK_REMINDERS_KEY] ?: true
+    }
+
+    suspend fun setStreakRemindersEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[STREAK_REMINDERS_KEY] = enabled }
     }
 
     suspend fun updateStreak(date: String) {

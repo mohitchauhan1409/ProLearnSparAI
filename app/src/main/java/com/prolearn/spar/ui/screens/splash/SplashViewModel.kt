@@ -3,8 +3,6 @@ package com.prolearn.spar.ui.screens.splash
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.prolearn.spar.data.local.AuthDataStore
-import com.prolearn.spar.data.local.SessionDataStore
-import com.prolearn.spar.data.repository.SparRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,21 +14,17 @@ import javax.inject.Inject
 /**
  * Splash routing outcomes:
  *  - LOADING          → still reading from disk (initial state)
- *  - SHOW_ONBOARDING  → first ever launch (hasLaunched == false)
  *  - SHOW_HOME        → returning user, currently logged in
- *  - SHOW_LOGIN       → returning user, not logged in (logged out)
+ *  - SHOW_LOGIN       → not logged in
  */
 enum class SplashDestination {
     LOADING,
-    SHOW_ONBOARDING,
     SHOW_HOME,
     SHOW_LOGIN
 }
 
 @HiltViewModel
 class SplashViewModel @Inject constructor(
-    private val sparRepository: SparRepository,
-    private val sessionDataStore: SessionDataStore,
     private val authDataStore: AuthDataStore
 ) : ViewModel() {
 
@@ -38,23 +32,17 @@ class SplashViewModel @Inject constructor(
     val destination: StateFlow<SplashDestination> = _destination.asStateFlow()
 
     init {
-        // Read both values immediately on VM creation — don't wait for a trigger.
+        // Read auth state immediately on VM creation — don't wait for a trigger.
         // Using .first() is a one-shot suspend read: it waits for the first emission
         // from DataStore (which includes the persisted on-disk value) and returns.
         // This is the correct, race-free way to read DataStore for routing decisions.
         viewModelScope.launch {
-            val hasLaunched = sessionDataStore.hasLaunched.first()
             val isLoggedIn  = authDataStore.isLoggedIn.first()
 
             _destination.value = when {
-                !hasLaunched -> SplashDestination.SHOW_ONBOARDING
                 isLoggedIn   -> SplashDestination.SHOW_HOME
                 else         -> SplashDestination.SHOW_LOGIN
             }
         }
-    }
-
-    fun setHasLaunched() {
-        viewModelScope.launch { sparRepository.setHasLaunched() }
     }
 }

@@ -9,7 +9,6 @@ import androidx.navigation.navArgument
 import com.prolearn.spar.ui.screens.auth.LoginScreen
 import com.prolearn.spar.ui.screens.auth.SignupScreen
 import com.prolearn.spar.ui.screens.home.HomeScreen
-import com.prolearn.spar.ui.screens.onboarding.OnboardingScreen
 import com.prolearn.spar.ui.screens.profile.ProfileScreen
 import com.prolearn.spar.ui.screens.progress.ProgressScreen
 import com.prolearn.spar.ui.screens.report.SessionReportScreen
@@ -29,24 +28,10 @@ fun ProLearnNavGraph(navController: NavHostController) {
                         popUpTo(Routes.Splash.route) { inclusive = true }
                     }
                 },
-                onNavigateToOnboarding = {
-                    navController.navigate(Routes.Onboarding.route) {
-                        popUpTo(Routes.Splash.route) { inclusive = true }
-                    }
-                },
                 onNavigateToLogin = {
                     navController.navigate(Routes.Login.route) {
                         popUpTo(Routes.Splash.route) { inclusive = true }
                     }
-                }
-            )
-        }
-
-        // ─── Onboarding ───────────────────────────────────────────────────────
-        composable(Routes.Onboarding.route) {
-            OnboardingScreen(
-                onNavigateToLogin = {
-                    navController.navigate(Routes.Login.route)
                 }
             )
         }
