@@ -1,5 +1,6 @@
 package com.prolearn.spar.ui.screens.setup
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.prolearn.spar.constants.Curriculum
@@ -8,12 +9,19 @@ import com.prolearn.spar.data.repository.AuthRepository
 import com.prolearn.spar.service.AudioPlaybackService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+private const val VOICE_TAG = "voiceImprovement"
 
 @HiltViewModel
 class SetupViewModel @Inject constructor(
@@ -47,6 +55,7 @@ class SetupViewModel @Inject constructor(
     val studentFirstName: StateFlow<String> = _studentFirstName.asStateFlow()
 
     private var previewJob: Job? = null
+    private val previewAudioCache = mutableMapOf<String, List<ByteArray>>()
 
     val isGhostModeAvailable = false
 
@@ -84,12 +93,14 @@ class SetupViewModel @Inject constructor(
 
     fun selectVoice(voiceId: String, name: String) {
         cancelPreview()
+        Log.i(VOICE_TAG, "setup_voice_selected voiceId=$voiceId name=$name")
         _selectedVoice.value = voiceId
         _selectedVoiceName.value = name
     }
 
     fun previewTeacher(teacher: TeacherOption) {
         if (_previewingVoiceId.value == teacher.voiceId) {
+            Log.i(VOICE_TAG, "setup_voice_preview_cancel_by_retap voiceId=${teacher.voiceId}")
             cancelPreview()
             return
         }
@@ -98,24 +109,116 @@ class SetupViewModel @Inject constructor(
         previewJob = viewModelScope.launch {
             audioPlayer.stop()
             _previewingVoiceId.value = teacher.voiceId
-            val text = teacher.previewText
-            elevenLabsApi.synthesize(text, teacher.voiceId) { bytes ->
-                if (previewJob?.isActive == true && _previewingVoiceId.value == teacher.voiceId) {
-                    audioPlayer.playAudio(
-                        bytes = bytes,
-                        onLevelUpdate = {},
-                        onComplete = { _previewingVoiceId.value = null }
-                    )
+            Log.i(
+                VOICE_TAG,
+                "setup_voice_preview_start voiceId=${teacher.voiceId} name=${teacher.name} chars=${teacher.previewText.length}"
+            )
+            runCatching {
+                val cachedAudio = previewAudioCache[teacher.voiceId]
+                if (cachedAudio != null) {
+                    Log.i(VOICE_TAG, "setup_voice_preview_cache_hit voiceId=${teacher.voiceId} chunks=${cachedAudio.size}")
+                    playPreviewChunks(teacher, cachedAudio)
+                } else {
+                    Log.i(VOICE_TAG, "setup_voice_preview_cache_miss voiceId=${teacher.voiceId}")
+                    generateAndPlayPreview(teacher)
                 }
             }.onFailure {
                 if (it is CancellationException) throw it
-                if (previewJob?.isActive == true) {
-                    audioPlayer.fallbackSpeak(text, teacher.languageTag()) {
-                        _previewingVoiceId.value = null
-                    }
-                }
+                Log.e(VOICE_TAG, "setup_voice_preview_tts_failed voiceId=${teacher.voiceId} error=${it.message}", it)
+                _previewingVoiceId.value = null
             }
         }
+    }
+
+    private suspend fun generateAndPlayPreview(teacher: TeacherOption) {
+        val segments = teacher.previewText.toPreviewSegments()
+        val generatedAudio = mutableListOf<ByteArray>()
+        Log.i(
+            VOICE_TAG,
+            "setup_voice_preview_segments voiceId=${teacher.voiceId} segments=${segments.size} lengths=${segments.map { it.length }}"
+        )
+        if (segments.isEmpty()) {
+            Log.w(VOICE_TAG, "setup_voice_preview_empty voiceId=${teacher.voiceId}")
+            _previewingVoiceId.value = null
+            return
+        }
+
+        coroutineScope {
+            var nextAudio: Deferred<ByteArray>? = synthesizePreviewSegmentAsync(teacher, segments, 0)
+            segments.forEachIndexed { index, _ ->
+                val audio = nextAudio?.await() ?: synthesizePreviewSegmentAsync(teacher, segments, index).await()
+                generatedAudio.add(audio)
+                Log.i(
+                    VOICE_TAG,
+                    "setup_voice_preview_chunk_ready voiceId=${teacher.voiceId} index=${index + 1}/${segments.size} bytes=${audio.size}"
+                )
+                nextAudio = if (index + 1 < segments.size) {
+                    synthesizePreviewSegmentAsync(teacher, segments, index + 1)
+                } else {
+                    null
+                }
+                playPreviewChunk(teacher, audio, index + 1, segments.size)
+            }
+        }
+
+        previewAudioCache[teacher.voiceId] = generatedAudio.toList()
+        Log.i(VOICE_TAG, "setup_voice_preview_cached voiceId=${teacher.voiceId} chunks=${generatedAudio.size}")
+        _previewingVoiceId.value = null
+    }
+
+    private fun CoroutineScope.synthesizePreviewSegmentAsync(
+        teacher: TeacherOption,
+        segments: List<String>,
+        index: Int
+    ): Deferred<ByteArray> = async {
+        val previousText = segments.take(index).joinToString(" ")
+        val nextText = segments.drop(index + 1).joinToString(" ")
+        Log.i(
+            VOICE_TAG,
+            "setup_voice_preview_tts_start voiceId=${teacher.voiceId} index=${index + 1}/${segments.size} chars=${segments[index].length}"
+        )
+        elevenLabsApi.synthesizeBytes(
+            text = segments[index],
+            voiceId = teacher.voiceId,
+            previousText = previousText,
+            nextText = nextText,
+            languageCode = teacher.previewLanguageCode
+        ).getOrThrow()
+    }
+
+    private suspend fun playPreviewChunks(teacher: TeacherOption, chunks: List<ByteArray>) {
+        chunks.forEachIndexed { index, bytes ->
+            playPreviewChunk(teacher, bytes, index + 1, chunks.size)
+        }
+        Log.i(VOICE_TAG, "setup_voice_preview_complete voiceId=${teacher.voiceId} source=cache")
+        _previewingVoiceId.value = null
+    }
+
+    private suspend fun playPreviewChunk(
+        teacher: TeacherOption,
+        bytes: ByteArray,
+        index: Int,
+        total: Int
+    ) {
+        val done = CompletableDeferred<Unit>()
+        Log.i(VOICE_TAG, "setup_voice_preview_play_start voiceId=${teacher.voiceId} index=$index/$total bytes=${bytes.size}")
+        audioPlayer.playAudio(
+            bytes = bytes,
+            onLevelUpdate = {},
+            onError = {
+                Log.e(
+                    VOICE_TAG,
+                    "setup_voice_preview_playback_failed voiceId=${teacher.voiceId} index=$index/$total error=${it.message}",
+                    it
+                )
+                done.completeExceptionally(it)
+            },
+            onComplete = {
+                Log.i(VOICE_TAG, "setup_voice_preview_play_complete voiceId=${teacher.voiceId} index=$index/$total")
+                done.complete(Unit)
+            }
+        )
+        done.await()
     }
 
     fun getChapters(): List<String> {
@@ -141,6 +244,7 @@ class SetupViewModel @Inject constructor(
     }
 
     private fun cancelPreview() {
+        Log.d(VOICE_TAG, "setup_voice_preview_cancel current=${_previewingVoiceId.value}")
         previewJob?.cancel()
         previewJob = null
         audioPlayer.stop()
@@ -154,46 +258,68 @@ data class TeacherOption(
     val name: String,
     val language: String,
     val specialty: String,
-    val previewText: String
+    val previewText: String,
+    val previewLanguageCode: String? = null
 ) {
     val displayName: String get() = "$name ($style)"
 }
 
-private fun TeacherOption.languageTag(): String = "en-IN"
-
 object Teachers {
     val options = listOf(
         TeacherOption(
-            voiceId = "JTPrASXyK62cF3L7w8hv",
+            voiceId = "LHJy3mhZWsvhUjy0zUM1",
             style = "Clear",
-            name = "P k anil",
-            language = "Hindi",
+            name = "Amrut",
+            language = "Hinglish",
             specialty = "Expert at simplifying tough ideas",
-            previewText = "Hi! Main P K Anil hoon. Tough concepts ko simple Hinglish mein, step by step samjhayenge. Chalo start karte hain."
+            previewText = "Hi, main Amrut hoon. Tough concepts simple Hinglish mein samjhayenge. Chalo start karte hain."
         ),
         TeacherOption(
-            voiceId = "X5RWySWhCXiGdP9YIKck",
-            style = "Warn",
-            name = "Tripti",
-            language = "Hindi",
+            voiceId = "MF4J4IDTRo0AxOO4dpFR",
+            style = "Warm",
+            name = "Devi",
+            language = "Hinglish",
             specialty = "Expert at focus and exam discipline",
-            previewText = "Hi, main Tripti hoon. Aaj distractions side mein rakhenge, smart practice karenge, aur preparation ko sharp banayenge."
+            previewText = "Hi, main Devi hoon. Aaj calmly focus rakhenge. Smart practice se preparation sharp banayenge."
         ),
         TeacherOption(
-            voiceId = "2BsEFcU7jUhLaUwV4h7l",
+            voiceId = "eUKPwd15VeaPJ9bDZ6iM",
             style = "Calm",
-            name = "Manav",
+            name = "Adarsh",
             language = "English",
             specialty = "Expert at confidence building",
-            previewText = "Hi, I'm Manav. We'll slow things down, understand the idea clearly, and build your confidence one answer at a time."
+            previewText = "Hi, I'm Adarsh. We'll go step by step. Clear concepts, calm practice, better confidence.",
+            previewLanguageCode = "en"
         ),
         TeacherOption(
-            voiceId = "P0TQBmxaqqw6qfDmK2xb",
+            voiceId = "P7vsEyTOpZ6YUTulin8m",
             style = "Soft",
-            name = "Simran",
+            name = "Tara",
             language = "English",
             specialty = "Expert at student psychology",
-            previewText = "Hi, I'm Simran. I'll keep the session gentle, focused, and encouraging so you can think clearly and grow without pressure."
+            previewText = "Hi, I'm Tara. We'll keep it gentle and focused. Think clearly, learn steadily, no pressure.",
+            previewLanguageCode = "en"
         )
     )
+}
+
+private fun String.toPreviewSegments(maxChars: Int = 48): List<String> {
+    if (isBlank()) return emptyList()
+    val segments = mutableListOf<String>()
+    val current = StringBuilder()
+
+    Regex("(?<=[.!?])\\s+").split(trim()).forEach { sentence ->
+        val part = sentence.trim()
+        if (part.isBlank()) return@forEach
+        val candidateLength = current.length + part.length + 1
+        if (candidateLength > maxChars && current.isNotEmpty()) {
+            segments.add(current.toString().trim())
+            current.clear()
+        }
+        if (current.isNotEmpty()) current.append(' ')
+        current.append(part)
+    }
+
+    if (current.isNotBlank()) segments.add(current.toString().trim())
+    return segments
 }

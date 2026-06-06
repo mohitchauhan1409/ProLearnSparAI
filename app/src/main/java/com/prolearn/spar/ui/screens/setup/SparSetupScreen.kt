@@ -688,10 +688,10 @@ private fun TeacherCard(
 }
 
 private fun teacherPortrait(voiceId: String): Int = when (voiceId) {
-    "JTPrASXyK62cF3L7w8hv" -> R.drawable.teacher_pk_anil
-    "X5RWySWhCXiGdP9YIKck" -> R.drawable.teacher_tripti
-    "2BsEFcU7jUhLaUwV4h7l" -> R.drawable.teacher_manav
-    "P0TQBmxaqqw6qfDmK2xb" -> R.drawable.teacher_simran
+    "LHJy3mhZWsvhUjy0zUM1" -> R.drawable.teacher_pk_anil
+    "MF4J4IDTRo0AxOO4dpFR" -> R.drawable.teacher_tripti
+    "eUKPwd15VeaPJ9bDZ6iM" -> R.drawable.teacher_manav
+    "P7vsEyTOpZ6YUTulin8m" -> R.drawable.teacher_simran
     else -> R.drawable.teacher_pk_anil
 }
 

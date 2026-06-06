@@ -17,6 +17,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val TAG = "ElevenLabsApi"
+private const val VOICE_TAG = "voiceImprovement"
 
 object VoiceIds {
     const val ARIA  = "EXAVITQu4vr4xnSDxMaL"
@@ -27,16 +28,20 @@ object VoiceIds {
 @Serializable
 data class ElevenLabsRequest(
     val text: String,
-    @SerialName("model_id") val modelId: String = "eleven_turbo_v2",
-    @SerialName("voice_settings") val voiceSettings: VoiceSettings = VoiceSettings()
+    @SerialName("model_id") val modelId: String = "eleven_flash_v2_5",
+    @SerialName("voice_settings") val voiceSettings: VoiceSettings = VoiceSettings(),
+    @SerialName("language_code") val languageCode: String? = null,
+    @SerialName("previous_text") val previousText: String? = null,
+    @SerialName("next_text") val nextText: String? = null,
+    @SerialName("apply_text_normalization") val applyTextNormalization: String = "auto"
 )
 
 @Serializable
 data class VoiceSettings(
-    val stability: Float = 0.5f,
-    @SerialName("similarity_boost") val similarityBoost: Float = 0.75f,
-    val style: Float = 0.0f,
-    @SerialName("use_speaker_boost") val useSpeakerBoost: Boolean = true
+    val stability: Float = 0.42f,
+    @SerialName("similarity_boost") val similarityBoost: Float = 0.82f,
+    val style: Float = 0.16f,
+    @SerialName("use_speaker_boost") val useSpeakerBoost: Boolean = false
 )
 
 @Singleton
@@ -47,29 +52,62 @@ class ElevenLabsApi @Inject constructor(
         text: String,
         voiceId: String,
         onAudioReady: (ByteArray) -> Unit
-    ): Result<Unit> = runCatching {
-        Log.d(TAG, "synthesize() voiceId=$voiceId text='${text.take(60)}'")
+    ): Result<Unit> = synthesizeBytes(text, voiceId).map { bytes ->
+        onAudioReady(bytes)
+    }
 
+    suspend fun synthesizeBytes(
+        text: String,
+        voiceId: String,
+        previousText: String? = null,
+        nextText: String? = null,
+        languageCode: String? = null
+    ): Result<ByteArray> = runCatching {
+        Log.d(TAG, "synthesizeBytes() voiceId=$voiceId text='${text.take(60)}'")
+        val startedAt = System.currentTimeMillis()
+        Log.i(
+            VOICE_TAG,
+            "tts_request_start voiceId=$voiceId model=eleven_flash_v2_5 chars=${text.length} " +
+                "hasPrevious=${!previousText.isNullOrBlank()} hasNext=${!nextText.isNullOrBlank()} " +
+                "languageCode=${languageCode ?: "auto"}"
+        )
         val response = client.post(
             "https://api.elevenlabs.io/v1/text-to-speech/$voiceId/stream"
         ) {
             header("xi-api-key", BuildConfig.ELEVENLABS_API_KEY)
-            parameter("output_format", "mp3_22050_32")
+            parameter("output_format", "mp3_44100_64")
             contentType(ContentType.Application.Json)
-            setBody(ElevenLabsRequest(text = text))
+            setBody(
+                ElevenLabsRequest(
+                    text = text,
+                    previousText = previousText?.takeLast(480),
+                    nextText = nextText?.take(480),
+                    languageCode = languageCode
+                )
+            )
         }
 
         val statusCode = response.status.value
-        Log.d(TAG, "synthesize() HTTP $statusCode")
+        Log.d(TAG, "synthesizeBytes() HTTP $statusCode")
+        Log.i(VOICE_TAG, "tts_response_headers status=$statusCode elapsedMs=${System.currentTimeMillis() - startedAt}")
 
         if (statusCode != 200) {
             val errorBody = response.bodyAsText()
             Log.e(TAG, "ElevenLabs error $statusCode: $errorBody")
+            Log.e(
+                VOICE_TAG,
+                "tts_request_failed status=$statusCode elapsedMs=${System.currentTimeMillis() - startedAt} " +
+                    "body=${errorBody.take(500)}"
+            )
             throw IllegalStateException("ElevenLabs HTTP $statusCode: $errorBody")
         }
 
         val bytes = response.readBytes()
-        Log.d(TAG, "synthesize() got ${bytes.size} bytes of audio")
-        onAudioReady(bytes)
+        Log.d(TAG, "synthesizeBytes() got ${bytes.size} bytes of audio")
+        Log.i(
+            VOICE_TAG,
+            "tts_audio_ready bytes=${bytes.size} elapsedMs=${System.currentTimeMillis() - startedAt}"
+        )
+        bytes
     }
 }

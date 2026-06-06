@@ -15,6 +15,12 @@ import com.prolearn.spar.service.HapticsManager
 import com.prolearn.spar.service.SpeechRecognitionService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +33,7 @@ import java.util.ArrayDeque
 import javax.inject.Inject
 
 private const val TAG = "LiveSparVM"
+private const val VOICE_TAG = "voiceImprovement"
 
 private data class PendingStudyMaterial(
     val kind: String,
@@ -99,6 +106,9 @@ class LiveSparViewModel @Inject constructor(
     private var tutorOutputPreparing = false
     private var streamingMessageJob: Job? = null
     private var streamingMessageId: Long? = null
+    private var tutorSpeechJob: Job? = null
+    private var tutorSpeechInterrupted = false
+    private var lastTutorVoiceFailureText: String? = null
 
     // ─── Session Lifecycle ────────────────────────────────────────────────────
 
@@ -112,6 +122,11 @@ class LiveSparViewModel @Inject constructor(
         systemPrompt = buildSparSystemPrompt(config)
         Log.i(TAG, "startSession() subject=${config.subject} chapter=${config.chapter} " +
                 "sessionType=${config.sessionType} difficulty=${config.difficulty} questions=${config.questionCount}")
+        Log.i(
+            VOICE_TAG,
+            "session_voice_start voiceId=${config.voiceId} voiceName=${config.voiceName} " +
+                "sessionType=${config.sessionType} subject=${config.subject} chapter=${config.chapter}"
+        )
         haptics.sessionStart()
         startTimer()
         askFirstQuestion()
@@ -165,14 +180,18 @@ class LiveSparViewModel @Inject constructor(
         val recognizerActive = _isRecognizerActive.value
         Log.d(TAG, "startListening() currentState=$currentState recognizerActive=$recognizerActive")
 
-        if (currentState is SparState.AiThinking ||
-            currentState is SparState.AiSpeaking ||
+        if (currentState is SparState.AiSpeaking || tutorOutputPreparing) {
+            Log.i(VOICE_TAG, "barge_in_requested state=$currentState tutorOutputPreparing=$tutorOutputPreparing")
+            interruptTutorForStudent()
+        } else if (currentState is SparState.AiThinking ||
             currentState is SparState.AiEvaluating) {
             Log.w(TAG, "startListening() blocked — AI busy (state=$currentState)")
+            Log.w(VOICE_TAG, "mic_start_blocked_ai_busy state=$currentState")
             return
         }
         if (recognizerActive) {
             Log.w(TAG, "startListening() blocked — recognizer already active")
+            Log.w(VOICE_TAG, "mic_start_blocked_recognizer_active")
             return
         }
 
@@ -182,6 +201,7 @@ class LiveSparViewModel @Inject constructor(
         _state.value = SparState.StudentListening
         setStatus("Listening — speak your answer")
         Log.i(TAG, "→ StudentListening, launching SpeechRecognizer")
+        Log.i(VOICE_TAG, "student_listening_start")
 
         // Safety timeout — if nothing happens within 5s (e.g. bind failure),
         // reset recognizer state so user can tap mic again
@@ -212,6 +232,7 @@ class LiveSparViewModel @Inject constructor(
             },
             onFinalResult = { result ->
                 Log.i(TAG, "Final transcript: '$result'")
+                Log.i(VOICE_TAG, "student_transcript_final chars=${result.length} blank=${result.isBlank()}")
                 _partialTranscript.value = ""
                 _isRecognizerActive.value = false
                 if (result.isBlank()) {
@@ -232,6 +253,7 @@ class LiveSparViewModel @Inject constructor(
             },
             onError = { errorMsg ->
                 Log.e(TAG, "SpeechRecognizer error: '$errorMsg'")
+                Log.e(VOICE_TAG, "student_transcription_error message=$errorMsg")
                 _partialTranscript.value = ""
                 _audioLevel.value = 0f
                 _isRecognizerActive.value = false
@@ -261,6 +283,7 @@ class LiveSparViewModel @Inject constructor(
         // Don't clear _isRecognizerActive yet — we're waiting for STT to come back
         // It will be cleared in onFinalResult / onError callbacks
         setStatus("Processing...")
+        Log.i(VOICE_TAG, "student_listening_stop_requested")
         speechService.stopListening()
     }
 
@@ -368,6 +391,12 @@ class LiveSparViewModel @Inject constructor(
 
     fun retryConnection() {
         Log.d(TAG, "retryConnection()")
+        lastTutorVoiceFailureText?.let { failedText ->
+            Log.i(VOICE_TAG, "voice_retry_last_failed_tutor_text chars=${failedText.length}")
+            lastTutorVoiceFailureText = null
+            speakText(failedText)
+            return
+        }
         val lastAiMessage = _messages.value.lastOrNull { it.role == "ai" }
         if (lastAiMessage == null) {
             Log.d(TAG, "retryConnection() — no messages, restarting session")
@@ -663,62 +692,166 @@ class LiveSparViewModel @Inject constructor(
 
     // ─── TTS ──────────────────────────────────────────────────────────────────
 
-    private suspend fun speakText(text: String) {
+    private fun speakText(text: String) {
+        tutorSpeechJob?.cancel()
+        tutorSpeechInterrupted = false
+        Log.i(VOICE_TAG, "tutor_speech_job_start chars=${text.length}")
+        tutorSpeechJob = viewModelScope.launch {
+            speakTextInternal(text)
+        }
+    }
+
+    private suspend fun speakTextInternal(text: String) {
         val voiceId = sessionConfig?.voiceId ?: VoiceIds.ARIA
         Log.i(TAG, "speakText() voiceId=$voiceId '${text.take(60)}'")
+        val speechStartedAt = System.currentTimeMillis()
         tutorOutputPreparing = true
         _state.value = SparState.AiThinking
         setStatus("Preparing voice...")
         _audioLevel.value = 0f
 
-        elevenLabsApi.synthesize(text, voiceId) { bytes ->
-            Log.d(TAG, "ElevenLabs audio ready: ${bytes.size} bytes")
-            audioPlayer.playAudio(
-                bytes,
-                onLevelUpdate = { _audioLevel.value = it },
-                onStart = { durationMs ->
-                    tutorOutputPreparing = false
-                    _state.value = SparState.AiSpeaking(text)
-                    setStatus("AI speaking...")
-                    startStreamingAiMessage(text, durationMs)
-                },
-                onComplete = {
-                    Log.d(TAG, "Playback done → StudentListening")
-                    tutorOutputPreparing = false
-                    streamingMessageJob?.cancel()
-                    finishStreamingAiMessage(text)
-                    _audioLevel.value = 0f
-                    _state.value = SparState.StudentListening
-                    setStatus("Your turn — tap mic to answer")
-                    haptics.tapLight()
-                    processNextQueuedInput()
-                }
-            )
-        }.onFailure { e ->
-            Log.e(TAG, "ElevenLabs failed (${e.message}), using device TTS")
-            setStatus("Using device voice...")
-            audioPlayer.fallbackSpeak(
-                text = text,
-                languageTag = teacherLanguageTag(voiceId),
-                onStart = { durationMs ->
-                    tutorOutputPreparing = false
-                    _state.value = SparState.AiSpeaking(text)
-                    setStatus("AI speaking...")
-                    startStreamingAiMessage(text, durationMs)
-                },
-                onComplete = {
-                    Log.d(TAG, "Fallback TTS done → StudentListening")
-                    tutorOutputPreparing = false
-                    streamingMessageJob?.cancel()
-                    finishStreamingAiMessage(text)
-                    _audioLevel.value = 0f
-                    _state.value = SparState.StudentListening
-                    setStatus("Your turn — tap mic to answer")
-                    haptics.tapLight()
-                    processNextQueuedInput()
-                }
-            )
+        val spokenText = text.prepareForSpeech()
+        val segments = spokenText.toSpeechSegments()
+        Log.i(
+            VOICE_TAG,
+            "tutor_speech_prepare voiceId=$voiceId originalChars=${text.length} spokenChars=${spokenText.length} segments=${segments.size}"
+        )
+        if (segments.isEmpty()) {
+            Log.w(VOICE_TAG, "tutor_speech_empty_after_normalization")
+            tutorOutputPreparing = false
+            _state.value = SparState.StudentListening
+            setStatus("Your turn — tap mic to answer")
+            return
         }
+
+        try {
+            coroutineScope {
+                var nextAudio: Deferred<ByteArray>? = synthesizeSegmentAsync(
+                    segments = segments,
+                    index = 0,
+                    voiceId = voiceId
+                )
+
+                segments.forEachIndexed { index, _ ->
+                    Log.i(VOICE_TAG, "tutor_segment_wait index=${index + 1}/${segments.size}")
+                    val audio = nextAudio?.await() ?: synthesizeSegmentAsync(segments, index, voiceId).await()
+                    Log.i(VOICE_TAG, "tutor_segment_audio_received index=${index + 1}/${segments.size} bytes=${audio.size}")
+                    nextAudio = if (index + 1 < segments.size) {
+                        synthesizeSegmentAsync(segments, index + 1, voiceId)
+                    } else {
+                        null
+                    }
+
+                    playTutorAudioSegment(
+                        bytes = audio,
+                        fullText = text,
+                        isFirstSegment = index == 0,
+                        estimatedDurationMs = estimateSpeechDurationMs(spokenText)
+                    )
+                }
+            }
+
+            Log.d(TAG, "Tutor playback done → StudentListening")
+            Log.i(VOICE_TAG, "tutor_speech_complete segments=${segments.size} totalMs=${System.currentTimeMillis() - speechStartedAt}")
+            lastTutorVoiceFailureText = null
+            tutorOutputPreparing = false
+            streamingMessageJob?.cancel()
+            finishStreamingAiMessage(text)
+            _audioLevel.value = 0f
+            _state.value = SparState.StudentListening
+            setStatus("Your turn — tap mic to answer")
+            haptics.tapLight()
+            processNextQueuedInput()
+        } catch (e: CancellationException) {
+            Log.i(VOICE_TAG, "tutor_speech_cancelled interrupted=$tutorSpeechInterrupted")
+            tutorOutputPreparing = false
+            _audioLevel.value = 0f
+            if (tutorSpeechInterrupted) return
+            throw e
+        } catch (e: Exception) {
+            if (tutorSpeechInterrupted) {
+                Log.i(TAG, "Tutor speech interrupted by student")
+                tutorOutputPreparing = false
+                _audioLevel.value = 0f
+                return
+            }
+            Log.e(TAG, "ElevenLabs speech failed: ${e.message}")
+            Log.e(VOICE_TAG, "tutor_speech_failed error=${e.message} totalMs=${System.currentTimeMillis() - speechStartedAt}", e)
+            lastTutorVoiceFailureText = text
+            tutorOutputPreparing = false
+            streamingMessageJob?.cancel()
+            _audioLevel.value = 0f
+            _state.value = SparState.Error("Teacher voice connection failed. Tap to retry.")
+            setStatus("Voice connection failed.")
+            haptics.error()
+        }
+    }
+
+    private fun CoroutineScope.synthesizeSegmentAsync(
+        segments: List<String>,
+        index: Int,
+        voiceId: String
+    ): Deferred<ByteArray> = async {
+        val previousText = segments.take(index).joinToString(" ")
+        val nextText = segments.drop(index + 1).joinToString(" ")
+        Log.i(
+            VOICE_TAG,
+            "tutor_segment_tts_start index=${index + 1}/${segments.size} chars=${segments[index].length} " +
+                "previousChars=${previousText.length} nextChars=${nextText.length}"
+        )
+        elevenLabsApi.synthesizeBytes(
+            text = segments[index],
+            voiceId = voiceId,
+            previousText = previousText,
+            nextText = nextText,
+            languageCode = teacherTtsLanguageCode(voiceId)
+        ).getOrThrow()
+    }
+
+    private suspend fun playTutorAudioSegment(
+        bytes: ByteArray,
+        fullText: String,
+        isFirstSegment: Boolean,
+        estimatedDurationMs: Int
+    ) {
+        val playbackDone = CompletableDeferred<Unit>()
+        Log.i(VOICE_TAG, "tutor_segment_playback_start isFirst=$isFirstSegment bytes=${bytes.size}")
+        audioPlayer.playAudio(
+            bytes = bytes,
+            onLevelUpdate = { _audioLevel.value = it },
+            onStart = {
+                Log.i(VOICE_TAG, "tutor_segment_playback_audio_started isFirst=$isFirstSegment durationMs=$it")
+                if (isFirstSegment) {
+                    tutorOutputPreparing = false
+                    _state.value = SparState.AiSpeaking(fullText)
+                    setStatus("Tutor is speaking. Tap mic to interrupt.")
+                    startStreamingAiMessage(fullText, estimatedDurationMs)
+                }
+            },
+            onError = { error ->
+                Log.e(VOICE_TAG, "tutor_segment_playback_failed isFirst=$isFirstSegment error=${error.message}", error)
+                playbackDone.completeExceptionally(error)
+            },
+            onComplete = {
+                Log.i(VOICE_TAG, "tutor_segment_playback_complete isFirst=$isFirstSegment")
+                playbackDone.complete(Unit)
+            }
+        )
+        playbackDone.await()
+    }
+
+    private fun interruptTutorForStudent() {
+        Log.i(TAG, "interruptTutorForStudent()")
+        Log.i(VOICE_TAG, "barge_in_interrupting_tutor")
+        tutorSpeechInterrupted = true
+        tutorSpeechJob?.cancel()
+        tutorSpeechJob = null
+        tutorOutputPreparing = false
+        streamingMessageJob?.cancel()
+        streamingMessageId = null
+        audioPlayer.stop()
+        _audioLevel.value = 0f
+        setStatus("Listening — go ahead")
     }
 
     fun endSession() {
@@ -735,6 +868,7 @@ class LiveSparViewModel @Inject constructor(
         Log.i(TAG, "completeSession() q=$questionCount answers=$totalAnswers hints=$hintsUsed")
         isTimerRunning = false
         tutorOutputPreparing = false
+        tutorSpeechJob?.cancel()
         streamingMessageJob?.cancel()
         streamingMessageId = null
         _isRecognizerActive.value = false
@@ -880,8 +1014,71 @@ class LiveSparViewModel @Inject constructor(
     }
 }
 
-private fun teacherLanguageTag(voiceId: String): String = when (voiceId) {
-    "JTPrASXyK62cF3L7w8hv",
-    "X5RWySWhCXiGdP9YIKck" -> "en-IN"
-    else -> "en-IN"
+private fun teacherTtsLanguageCode(voiceId: String): String? = when (voiceId) {
+    "LHJy3mhZWsvhUjy0zUM1",
+    "MF4J4IDTRo0AxOO4dpFR" -> null
+    else -> "en"
+}
+
+private fun String.prepareForSpeech(): String =
+    replace("—", ", ")
+        .replace("–", ", ")
+        .replace("→", " gives ")
+        .replace("=", " equals ")
+        .replace("+", " plus ")
+        .replace("-", " minus ")
+        .replace("*", " times ")
+        .replace("/", " divided by ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
+private fun String.toSpeechSegments(maxChars: Int = 105): List<String> {
+    if (isBlank()) return emptyList()
+
+    val sentenceParts = Regex("(?<=[.!?])\\s+").split(trim())
+    val segments = mutableListOf<String>()
+    val current = StringBuilder()
+
+    fun flush() {
+        val text = current.toString().trim()
+        if (text.isNotBlank()) segments.add(text)
+        current.clear()
+    }
+
+    sentenceParts.forEach { sentence ->
+        val part = sentence.trim()
+        if (part.isBlank()) return@forEach
+        if (part.length > maxChars) {
+            flush()
+            splitLongSpeechPart(part, maxChars).forEach(segments::add)
+            return@forEach
+        }
+        val candidateLength = current.length + part.length + 1
+        if (candidateLength > maxChars) flush()
+        if (current.isNotEmpty()) current.append(' ')
+        current.append(part)
+    }
+    flush()
+    return segments
+}
+
+private fun splitLongSpeechPart(text: String, maxChars: Int): List<String> {
+    val chunks = mutableListOf<String>()
+    val current = StringBuilder()
+    text.split(Regex("(?<=,)\\s+|\\s+")).forEach { token ->
+        if (token.isBlank()) return@forEach
+        if (current.length + token.length + 1 > maxChars && current.isNotEmpty()) {
+            chunks.add(current.toString().trim())
+            current.clear()
+        }
+        if (current.isNotEmpty()) current.append(' ')
+        current.append(token)
+    }
+    if (current.isNotBlank()) chunks.add(current.toString().trim())
+    return chunks
+}
+
+private fun estimateSpeechDurationMs(text: String): Int {
+    val words = Regex("\\S+").findAll(text).count()
+    return (words * 330).coerceAtLeast(1400)
 }

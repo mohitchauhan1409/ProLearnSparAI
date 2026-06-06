@@ -41,6 +41,7 @@ import javax.inject.Singleton
 import kotlin.math.sqrt
 
 private const val TAG = "SpeechRecognitionSvc"
+private const val VOICE_TAG = "voiceImprovement"
 private const val SAMPLE_RATE = 16000
 private const val CHANNEL_CFG = AudioFormat.CHANNEL_IN_MONO
 private const val AUDIO_FMT   = AudioFormat.ENCODING_PCM_16BIT
@@ -75,9 +76,9 @@ class SpeechRecognitionService @Inject constructor(
     private var recordingJob: Job? = null
 
     private val useAndroidRecognizer: Boolean
-        // Force Mode B (AudioRecord + ElevenLabs) — more reliable across all devices.
-        // Android SpeechRecognizer requires Google Play Services speech engine to be bound,
-        // which fails silently on many devices (custom ROMs, Google app disabled, etc.)
+        // Some devices report SpeechRecognizer.isRecognitionAvailable=true, then fail with
+        // "bind to recognition service failed" and never call RecognitionListener. Keep the
+        // reliable AudioRecord + ElevenLabs path as primary for live sparring.
         get() = false
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -92,9 +93,14 @@ class SpeechRecognitionService @Inject constructor(
     ) {
         if (useAndroidRecognizer) {
             Log.i(TAG, "startListening() → Mode A (Android SpeechRecognizer)")
+            Log.i(VOICE_TAG, "stt_start mode=android_realtime recognitionAvailable=true")
             startModeA(onPartialResult, onFinalResult, onAudioLevel, onError)
         } else {
             Log.i(TAG, "startListening() → Mode B (AudioRecord + ElevenLabs STT)")
+            Log.i(
+                VOICE_TAG,
+                "stt_start mode=elevenlabs_batch recognitionAvailable=${SpeechRecognizer.isRecognitionAvailable(context)} reason=android_bind_unreliable"
+            )
             startModeB(onPartialResult, onFinalResult, onAudioLevel, onError)
         }
     }
@@ -102,6 +108,10 @@ class SpeechRecognitionService @Inject constructor(
     fun stopListening() {
         Log.d(TAG, "stopListening() androidActive=$androidRecognizerActive " +
                 "audioRecordActive=${keepRecording.get()}")
+        Log.i(
+            VOICE_TAG,
+            "stt_stop_requested androidActive=$androidRecognizerActive audioRecordActive=${keepRecording.get()}"
+        )
         when {
             androidRecognizerActive -> {
                 userStoppedEarly = true
@@ -164,10 +174,12 @@ class SpeechRecognitionService @Inject constructor(
             override fun onReadyForSpeech(params: Bundle?) {
                 androidRecognizerActive = true
                 Log.i(TAG, "A: onReadyForSpeech ✓ — mic open, speak now")
+                Log.i(VOICE_TAG, "stt_android_ready_for_speech")
             }
 
             override fun onBeginningOfSpeech() {
                 Log.i(TAG, "A: onBeginningOfSpeech ✓ — voice detected")
+                Log.i(VOICE_TAG, "stt_android_beginning_of_speech")
             }
 
             override fun onRmsChanged(rmsdB: Float) {
@@ -189,6 +201,7 @@ class SpeechRecognitionService @Inject constructor(
                     .getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     ?.firstOrNull { it.isNotBlank() } ?: return
                 Log.d(TAG, "A: partial='$partial'")
+                Log.d(VOICE_TAG, "stt_android_partial chars=${partial.length}")
                 onPartialResult(partial)
             }
 
@@ -198,6 +211,7 @@ class SpeechRecognitionService @Inject constructor(
                     .getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     ?.firstOrNull { it.isNotBlank() }
                 Log.i(TAG, "A: onResults='$result' userStoppedEarly=$userStoppedEarly")
+                Log.i(VOICE_TAG, "stt_android_final chars=${result?.length ?: 0} userStoppedEarly=$userStoppedEarly")
                 if (!result.isNullOrBlank()) {
                     onFinalResult(result)
                 } else {
@@ -208,6 +222,7 @@ class SpeechRecognitionService @Inject constructor(
             override fun onError(error: Int) {
                 androidRecognizerActive = false
                 Log.e(TAG, "A: onError code=$error userStoppedEarly=$userStoppedEarly")
+                Log.e(VOICE_TAG, "stt_android_error code=$error userStoppedEarly=$userStoppedEarly")
 
                 // If user tapped stop early with no speech — silent cancel, not an error
                 if (userStoppedEarly && error == SpeechRecognizer.ERROR_NO_MATCH) {
@@ -287,10 +302,12 @@ class SpeechRecognitionService @Inject constructor(
 
         keepRecording.set(true)
         val pcmOut = ByteArrayOutputStream()
+        val recordingStartedAt = System.currentTimeMillis()
 
         recordingJob = scope.launch {
             recorder.startRecording()
             Log.i(TAG, "B: ● Recording started")
+            Log.i(VOICE_TAG, "stt_elevenlabs_recording_started sampleRate=$SAMPLE_RATE buffer=$minBuf")
 
             val buf = ShortArray(minBuf / 2)
             var totalSamples = 0L
@@ -322,6 +339,10 @@ class SpeechRecognitionService @Inject constructor(
             }
 
             val pcmBytes = pcmOut.toByteArray()
+            Log.i(
+                VOICE_TAG,
+                "stt_elevenlabs_recording_stopped pcmBytes=${pcmBytes.size} durationMs=${System.currentTimeMillis() - recordingStartedAt}"
+            )
             if (pcmBytes.size < SAMPLE_RATE) {
                 withContext(Dispatchers.Main) {
                     onError("Too short. Tap mic and speak your full answer.")
@@ -340,6 +361,8 @@ class SpeechRecognitionService @Inject constructor(
         onError: (String) -> Unit
     ) {
         Log.d(TAG, "B: transcribeWithElevenLabs() ${wavBytes.size} bytes")
+        val startedAt = System.currentTimeMillis()
+        Log.i(VOICE_TAG, "stt_elevenlabs_upload_start wavBytes=${wavBytes.size} model=scribe_v1")
         runCatching {
             val response = httpClient.post("https://api.elevenlabs.io/v1/speech-to-text") {
                 header("xi-api-key", BuildConfig.ELEVENLABS_API_KEY)
@@ -359,11 +382,13 @@ class SpeechRecognitionService @Inject constructor(
             val status = response.status.value
             val body   = response.bodyAsText()
             Log.d(TAG, "B: STT HTTP $status body=${body.take(200)}")
+            Log.i(VOICE_TAG, "stt_elevenlabs_response status=$status elapsedMs=${System.currentTimeMillis() - startedAt}")
             if (status != 200) throw IllegalStateException("STT HTTP $status: $body")
 
             val text = json.parseToJsonElement(body)
                 .jsonObject["text"]?.jsonPrimitive?.content?.trim() ?: ""
             Log.i(TAG, "B: transcript='$text'")
+            Log.i(VOICE_TAG, "stt_elevenlabs_final chars=${text.length} elapsedMs=${System.currentTimeMillis() - startedAt}")
 
             // Filter non-speech audio events like "(static sound)", "(beeping)"
             if (text.matches(Regex("^\\(.*\\)$"))) "" else text
@@ -374,6 +399,7 @@ class SpeechRecognitionService @Inject constructor(
             }
         }.onFailure { e ->
             Log.e(TAG, "B: STT failed: ${e.message}")
+            Log.e(VOICE_TAG, "stt_elevenlabs_failed error=${e.message} elapsedMs=${System.currentTimeMillis() - startedAt}", e)
             withContext(Dispatchers.Main) {
                 onError("Transcription failed. Tap mic to retry.")
             }

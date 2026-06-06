@@ -2,7 +2,6 @@ package com.prolearn.spar.service
 
 import android.content.Context
 import android.media.MediaPlayer
-import android.speech.tts.TextToSpeech
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -11,28 +10,31 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
-import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val TAG = "AudioPlaybackSvc"
+private const val VOICE_TAG = "voiceImprovement"
 
 @Singleton
 class AudioPlaybackService @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private var mediaPlayer: MediaPlayer? = null
-    private var tts: TextToSpeech? = null
     private var levelJob: Job? = null
+    private var currentAudioFile: File? = null
     private val scope = CoroutineScope(Dispatchers.Main)
 
     fun playAudio(
         bytes: ByteArray,
         onLevelUpdate: (Float) -> Unit,
         onStart: (durationMs: Int) -> Unit = {},
+        onError: (Throwable) -> Unit = {},
         onComplete: () -> Unit
     ) {
         Log.d(TAG, "playAudio() — ${bytes.size} bytes")
+        val startedAt = System.currentTimeMillis()
+        Log.i(VOICE_TAG, "playback_prepare_start bytes=${bytes.size}")
         stop()
 
         val file = try {
@@ -41,78 +43,67 @@ class AudioPlaybackService @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to write audio file", e)
-            onComplete()
+            Log.e(VOICE_TAG, "playback_file_write_failed bytes=${bytes.size} error=${e.message}", e)
+            onError(e)
             return
         }
+        currentAudioFile = file
+        Log.d(VOICE_TAG, "playback_temp_file_ready path=${file.name} bytes=${file.length()}")
 
         try {
             mediaPlayer = MediaPlayer().apply {
-                setDataSource(file.absolutePath)
-                prepare()
                 setOnCompletionListener {
                     Log.d(TAG, "MediaPlayer onCompletion")
+                    Log.i(VOICE_TAG, "playback_complete elapsedMs=${System.currentTimeMillis() - startedAt}")
                     levelJob?.cancel()
-                    file.delete()
+                    deleteCurrentAudioFile()
                     releasePlayer()
-                    // Always call back on Main thread
                     scope.launch { onComplete() }
                 }
                 setOnErrorListener { _, what, extra ->
                     Log.e(TAG, "MediaPlayer error: what=$what extra=$extra")
+                    Log.e(
+                        VOICE_TAG,
+                        "playback_media_error what=$what extra=$extra elapsedMs=${System.currentTimeMillis() - startedAt}"
+                    )
                     levelJob?.cancel()
-                    file.delete()
+                    deleteCurrentAudioFile()
                     releasePlayer()
-                    scope.launch { onComplete() }
+                    scope.launch { onError(IllegalStateException("MediaPlayer error what=$what extra=$extra")) }
                     true
                 }
-                start()
-                Log.d(TAG, "MediaPlayer started, duration=${duration}ms")
-                onStart(duration)
-            }
-
-            // Simulate waveform levels on IO, but dispatch update on Main
-            levelJob = scope.launch(Dispatchers.IO) {
-                while (mediaPlayer?.isPlaying == true) {
-                    val level = (Math.random() * 0.7 + 0.3).toFloat()
-                    scope.launch { onLevelUpdate(level) }
-                    delay(60)
+                setOnPreparedListener { player ->
+                    player.start()
+                    Log.d(TAG, "MediaPlayer started, duration=${player.duration}ms")
+                    Log.i(
+                        VOICE_TAG,
+                        "playback_started durationMs=${player.duration} prepareMs=${System.currentTimeMillis() - startedAt}"
+                    )
+                    onStart(player.duration)
+                    startLevelUpdates(onLevelUpdate)
                 }
-                Log.d(TAG, "Level simulation loop ended")
+                setDataSource(file.absolutePath)
+                prepareAsync()
+                Log.d(VOICE_TAG, "playback_prepare_async_called")
             }
         } catch (e: Exception) {
             Log.e(TAG, "MediaPlayer setup failed", e)
-            file.delete()
+            Log.e(VOICE_TAG, "playback_setup_failed error=${e.message}", e)
+            deleteCurrentAudioFile()
             releasePlayer()
-            onComplete()
+            onError(e)
         }
     }
 
-    fun fallbackSpeak(
-        text: String,
-        languageTag: String = "en-IN",
-        onStart: (durationMs: Int) -> Unit = {},
-        onComplete: () -> Unit
-    ) {
-        Log.d(TAG, "fallbackSpeak() — using Android TTS language=$languageTag")
-        releaseTts()
-        val estimatedMs = (text.split(" ").size * 350L).coerceAtLeast(1500L)
-        tts = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.forLanguageTag(languageTag)
-                tts?.setSpeechRate(0.9f)
-                tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "fallback_tts")
-                onStart(estimatedMs.toInt())
-                Log.d(TAG, "TTS speaking: '${text.take(40)}...'")
-                scope.launch(Dispatchers.IO) {
-                    Log.d(TAG, "TTS estimated duration: ${estimatedMs}ms")
-                    delay(estimatedMs)
-                    releaseTts()
-                    scope.launch { onComplete() }
-                }
-            } else {
-                Log.e(TAG, "TTS init failed with status=$status")
-                scope.launch { onComplete() }
+    private fun startLevelUpdates(onLevelUpdate: (Float) -> Unit) {
+        levelJob?.cancel()
+        levelJob = scope.launch(Dispatchers.IO) {
+            while (mediaPlayer?.isPlaying == true) {
+                val level = (Math.random() * 0.7 + 0.3).toFloat()
+                scope.launch { onLevelUpdate(level) }
+                delay(60)
             }
+            Log.d(TAG, "Level simulation loop ended")
         }
     }
 
@@ -120,10 +111,11 @@ class AudioPlaybackService @Inject constructor(
 
     fun stop() {
         Log.d(TAG, "stop() called")
+        Log.d(VOICE_TAG, "playback_stop_requested mediaPlaying=${mediaPlayer?.isPlaying == true}")
         levelJob?.cancel()
         levelJob = null
         releasePlayer()
-        releaseTts()
+        deleteCurrentAudioFile()
     }
 
     private fun releasePlayer() {
@@ -139,11 +131,9 @@ class AudioPlaybackService @Inject constructor(
         mediaPlayer = null
     }
 
-    private fun releaseTts() {
-        tts?.apply {
-            stop()
-            shutdown()
-        }
-        tts = null
+    private fun deleteCurrentAudioFile() {
+        currentAudioFile?.delete()
+        currentAudioFile = null
     }
+
 }
