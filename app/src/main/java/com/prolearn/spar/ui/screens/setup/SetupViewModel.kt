@@ -269,26 +269,26 @@ object Teachers {
         TeacherOption(
             voiceId = "LHJy3mhZWsvhUjy0zUM1",
             style = "Clear",
-            name = "Amrut",
+            name = "Amit",
             language = "Hinglish",
             specialty = "Expert at simplifying tough ideas",
-            previewText = "Hi, main Amrut hoon. Tough concepts simple Hinglish mein samjhayenge. Chalo start karte hain."
+            previewText = "Hello, welcome to ProLearn. Chahe aap kisi tough question par atke ho ya kisi new topic ko explore karna chahte ho, main help karne ke liye yahan hoon. Bas apna question poochiye, aur hum milkar usse samajhte hain."
         ),
         TeacherOption(
             voiceId = "MF4J4IDTRo0AxOO4dpFR",
             style = "Warm",
-            name = "Devi",
+            name = "Neha",
             language = "Hinglish",
             specialty = "Expert at focus and exam discipline",
-            previewText = "Hi, main Devi hoon. Aaj calmly focus rakhenge. Smart practice se preparation sharp banayenge."
+            previewText = "Namaste, welcome to ProLearn. Agar kisi topic mein confusion ho ya koi question difficult lag raha ho, toh bas mujhse pooch lijiye. Main concepts ko simple language mein samjhaungi aur har step par aapki help karungi."
         ),
         TeacherOption(
             voiceId = "eUKPwd15VeaPJ9bDZ6iM",
             style = "Calm",
-            name = "Adarsh",
+            name = "Ravi",
             language = "English",
             specialty = "Expert at confidence building",
-            previewText = "Hi, I'm Adarsh. We'll go step by step. Clear concepts, calm practice, better confidence.",
+            previewText = "Hello, and welcome to ProLearn. You can ask questions, upload images, or simply speak to me. I'll explain concepts clearly, break down complex problems, and help you understand the reasoning behind every answer.",
             previewLanguageCode = "en"
         ),
         TeacherOption(
@@ -297,7 +297,7 @@ object Teachers {
             name = "Tara",
             language = "English",
             specialty = "Expert at student psychology",
-            previewText = "Hi, I'm Tara. We'll keep it gentle and focused. Think clearly, learn steadily, no pressure.",
+            previewText = "Hi, welcome to ProLearn. I'm here to make learning feel a little easier. Whether you're studying for an exam, reviewing a concept, or solving a difficult question, I'll guide you step by step and help you build confidence along the way.",
             previewLanguageCode = "en"
         )
     )
