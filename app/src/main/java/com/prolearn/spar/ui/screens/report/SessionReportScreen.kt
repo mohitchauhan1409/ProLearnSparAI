@@ -36,7 +36,6 @@ import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -106,6 +105,8 @@ fun SessionReportScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
+                .verticalScroll(rememberScrollState())
                 .background(
                     Brush.linearGradient(
                         colors = listOf(Page, Color(0xFFFFFFFF), Color(0xFFF1F7F3)),
@@ -113,25 +114,23 @@ fun SessionReportScreen(
                         end = Offset(800f, 1400f)
                     )
                 )
-                .statusBarsPadding()
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 16.dp)
         ) {
             AnimatedSection(index = 0) {
                 ReportHero(session = readySession, report = report)
             }
 
-            Spacer(Modifier.height(16.dp))
-
-            AnimatedSection(index = 1) {
-                InsightCard(report = report)
-            }
-
             if (report.flashcards.isNotEmpty()) {
                 Spacer(Modifier.height(18.dp))
-                AnimatedSection(index = 2) {
+                AnimatedSection(index = 1) {
                     FlashcardDeckSection(cards = report.flashcards)
                 }
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            AnimatedSection(index = 2) {
+                InsightCard(report = report)
             }
 
             Spacer(Modifier.height(20.dp))
@@ -393,7 +392,7 @@ private fun MiniMetric(icon: ImageVector, value: String, label: String, tint: Co
 @Composable
 private fun InsightCard(report: ReportUi) {
     GlassPanel {
-        Label("AI-generated report", Icons.Default.AutoAwesome)
+        Label("Learning session summary", Icons.Default.AutoAwesome)
         Spacer(Modifier.height(10.dp))
         Text(
             report.summary,
@@ -414,42 +413,14 @@ private fun InsightCard(report: ReportUi) {
 }
 
 @Composable
-private fun HighlightsGrid(report: ReportUi) {
+private fun NextMovesSection(report: ReportUi) {
     Column {
-        SectionTitle("Highlights")
-        Spacer(Modifier.height(10.dp))
-        report.highlights.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                row.forEachIndexed { index, text ->
-                    HighlightCard(text, if (index == 0) Mint else Sky, Modifier.weight(1f))
-                }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(10.dp))
-        }
         SectionTitle("Next moves")
         Spacer(Modifier.height(10.dp))
         report.nextSteps.forEachIndexed { index, step ->
             NextStepRow(index + 1, step)
             Spacer(Modifier.height(8.dp))
         }
-    }
-}
-
-@Composable
-private fun HighlightCard(text: String, tint: Color, modifier: Modifier) {
-    GlassPanel(modifier = modifier, padding = 13.dp) {
-        Box(
-            modifier = Modifier
-                .size(30.dp)
-                .clip(CircleShape)
-                .background(tint),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.TrendingUp, null, tint = Ink, modifier = Modifier.size(16.dp))
-        }
-        Spacer(Modifier.height(10.dp))
-        Text(text, color = Ink, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -535,11 +506,12 @@ private fun FlashcardDeck(cards: List<SessionFlashcard>) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(236.dp),
+            .height(312.dp),
         contentAlignment = Alignment.Center
     ) {
-        deck.take(4).asReversed().forEachIndexed { reverseIndex, card ->
-            val stackIndex = deck.take(4).lastIndex - reverseIndex
+        val visibleCards = deck.take(4)
+        visibleCards.asReversed().forEachIndexed { reverseIndex, card ->
+            val stackIndex = visibleCards.lastIndex - reverseIndex
             val isTop = stackIndex == 0
             FlashcardStackCard(
                 card = card,
@@ -585,32 +557,116 @@ private fun FlashcardStackCard(
 ) {
     val colors = listOf(Mint, Sky, Rose, Peach)
     val baseTint = colors[stackIndex % colors.size]
+    val frontSize = when {
+        card.front.length > 135 -> 13.sp
+        card.front.length > 95 -> 14.sp
+        card.front.length > 62 -> 15.sp
+        else -> 17.sp
+    }
+    val frontLineHeight = when {
+        card.front.length > 135 -> 18.sp
+        card.front.length > 95 -> 20.sp
+        card.front.length > 62 -> 21.sp
+        else -> 23.sp
+    }
+    val backSize = when {
+        card.back.length > 180 -> 11.sp
+        card.back.length > 125 -> 12.sp
+        else -> 13.sp
+    }
+    val backLineHeight = when {
+        card.back.length > 180 -> 16.sp
+        card.back.length > 125 -> 17.sp
+        else -> 18.sp
+    }
+    val frontMaxLines = when {
+        card.front.length > 95 -> 4
+        else -> 3
+    }
+    val backMaxLines = when {
+        card.back.length > 125 -> 4
+        else -> 5
+    }
+    val isTop = stackIndex == 0
+
     Column(
         modifier = modifier
-            .width(292.dp)
-            .height(204.dp)
+            .fillMaxWidth(0.94f)
+            .height(256.dp)
             .graphicsLayer {
-                translationX = offsetX + stackIndex * 11f
-                translationY = stackIndex * 10f
-                scaleX = 1f - stackIndex * 0.045f
-                scaleY = 1f - stackIndex * 0.045f
-                rotationZ = offsetX / 34f
-                alpha = 1f - stackIndex * 0.08f
+                translationX = offsetX + stackIndex * 16f
+                translationY = stackIndex * 13f
+                scaleX = 1f - stackIndex * 0.055f
+                scaleY = 1f - stackIndex * 0.055f
+                rotationZ = if (isTop) offsetX / 34f else -stackIndex * 1.5f
+                alpha = 1f - stackIndex * 0.07f
             }
             .clip(RoundedCornerShape(8.dp))
-            .background(Brush.linearGradient(listOf(Color.White, baseTint)))
-            .border(1.dp, Color.White.copy(alpha = 0.82f), RoundedCornerShape(8.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(Color.White, Color.White.copy(alpha = 0.94f), baseTint)
+                )
+            )
+            .border(
+                1.dp,
+                if (isTop) Moss.copy(alpha = 0.34f) else Color.White.copy(alpha = 0.82f),
+                RoundedCornerShape(8.dp)
+            )
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.School, null, tint = Moss, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(card.tag.uppercase(), color = Moss, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.78f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.School, null, tint = Moss, modifier = Modifier.size(16.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                card.tag.uppercase(),
+                color = Moss,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                "${stackIndex + 1}",
+                color = SoftInk.copy(alpha = 0.58f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
-        Spacer(Modifier.height(14.dp))
-        Text(card.front, color = Ink, fontSize = 17.sp, lineHeight = 23.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.weight(1f))
-        Text(card.back, color = SoftInk, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(13.dp))
+        Text(
+            card.front,
+            color = Ink,
+            fontSize = frontSize,
+            lineHeight = frontLineHeight,
+            fontWeight = FontWeight.Bold,
+            maxLines = frontMaxLines,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.height(11.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Line)
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            card.back,
+            color = SoftInk,
+            fontSize = backSize,
+            lineHeight = backLineHeight,
+            maxLines = backMaxLines,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -701,7 +757,6 @@ private data class ReportUi(
     val timeText: String,
     val summary: String,
     val insight: String,
-    val highlights: List<String>,
     val nextSteps: List<String>,
     val flashcards: List<SessionFlashcard>
 )
@@ -722,7 +777,6 @@ private fun Session.toReport(): ReportUi {
         timeText = durationSeconds.toClock(),
         summary = details.summary,
         insight = aiInsight,
-        highlights = details.highlights.filter { it.isNotBlank() },
         nextSteps = details.nextSteps.filter { it.isNotBlank() },
         flashcards = details.flashcards.filter { it.front.isNotBlank() && it.back.isNotBlank() }
     )

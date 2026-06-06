@@ -102,6 +102,7 @@ tasks.withType<KotlinCompile>().configureEach {
 dependencies {
 
 
+    implementation(libs.androidx.compose.foundation.layout)
     val composeBom =
         platform(libs.androidx.compose.bom)
 
