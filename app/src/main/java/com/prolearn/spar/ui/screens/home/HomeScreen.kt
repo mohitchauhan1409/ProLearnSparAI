@@ -19,13 +19,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -773,8 +773,18 @@ private fun PremiumActionButton(
         spring(dampingRatio = 0.72f),
         label = "buttonScale"
     )
+    val shineTransition = rememberInfiniteTransition(label = "premiumButtonShine")
+    val shineOffset by shineTransition.animateFloat(
+        initialValue = -180f,
+        targetValue = 420f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "premiumButtonShineOffset"
+    )
 
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp)
@@ -795,24 +805,38 @@ private fun PremiumActionButton(
                 onClick = onClick
             )
             .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
+        contentAlignment = Alignment.Center
     ) {
         Box(
             modifier = Modifier
-                .size(38.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center
+                .width(72.dp)
+                .height(96.dp)
+                .offset(x = shineOffset.dp)
+                .graphicsLayer { rotationZ = 18f }
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color.Transparent,
+                            Color.White.copy(alpha = 0.28f),
+                            Color.White.copy(alpha = 0.55f),
+                            Color.White.copy(alpha = 0.18f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
         ) {
             Icon(
                 icon,
-                null,
+                contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(19.dp)
+                modifier = Modifier.size(17.dp)
             )
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
+            Spacer(Modifier.width(9.dp))
             Text(
                 text,
                 fontSize = 15.sp,
@@ -820,13 +844,14 @@ private fun PremiumActionButton(
                 color = Color.White,
                 fontFamily = BricolageGrotesqueFamily
             )
+            Spacer(Modifier.width(12.dp))
+            Icon(
+                Icons.Outlined.ArrowForward,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
         }
-        Icon(
-            Icons.Outlined.ArrowForward,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(18.dp)
-        )
     }
 }
 

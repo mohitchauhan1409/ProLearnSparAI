@@ -319,7 +319,7 @@ private fun HeaderCard() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(38.dp)
                     .clip(CircleShape)
                     .background(BlushMist),
                 contentAlignment = Alignment.Center
@@ -330,13 +330,13 @@ private fun HeaderCard() {
             Column(Modifier.weight(1f)) {
                 Text(
                     "Design your study flow",
-                    fontSize = 22.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = Ink
                 )
                 Text(
                     "Pick the mode, level, topic, and teacher voice.",
-                    fontSize = 13.sp,
+                    fontSize = 10.sp,
                     color = ProLearnColors.MutedDark,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis

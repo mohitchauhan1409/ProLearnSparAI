@@ -66,6 +66,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -77,6 +78,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
+import com.prolearn.spar.R
 import com.prolearn.spar.ui.theme.BricolageGrotesqueFamily
 import com.prolearn.spar.ui.theme.ProLearnColors
 import kotlinx.coroutines.delay
@@ -515,6 +517,49 @@ internal fun AuthSecondaryButton(
         Spacer(Modifier.width(10.dp))
         Text(
             text,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = BricolageGrotesqueFamily,
+            color = AuthInk
+        )
+    }
+}
+
+@Composable
+internal fun AuthGoogleButton(onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        if (pressed) 0.982f else 1f,
+        spring(dampingRatio = 0.72f),
+        label = "googleButtonScale"
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = 0.82f))
+            .border(1.dp, AuthSoftBorder, RoundedCornerShape(18.dp))
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            painter = painterResource(id = R.drawable.icons8_google),
+            contentDescription = null,
+            tint = Color.Unspecified,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(Modifier.width(11.dp))
+        Text(
+            "Continue with Google",
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
             fontFamily = BricolageGrotesqueFamily,

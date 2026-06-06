@@ -148,6 +148,10 @@ fun LoginScreen(
                             enabled = !isLoading,
                             onClick = { viewModel.login(email, password) }
                         )
+
+                        AuthDivider("or")
+
+                        AuthGoogleButton(onClick = {})
                     }
                 }
             }
