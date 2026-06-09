@@ -1,5 +1,13 @@
 package com.prolearn.spar.ui.screens.arena
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,16 +38,22 @@ fun ArenaScreen(
     var page by rememberSaveable { mutableStateOf(ArenaPage.Home) }
     val snackbarHostState = remember { SnackbarHostState() }
 
+    BackHandler(enabled = page != ArenaPage.Home) {
+        page = ArenaPage.Home
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = PageBg,
         bottomBar = {
-            ProLearnBottomNav(
-                selected = MainTab.Arena,
-                onHome = onNavigateToHome,
-                onArena = { page = ArenaPage.Home },
-                onProfile = onNavigateToProfile
-            )
+            if (page == ArenaPage.Home) {
+                ProLearnBottomNav(
+                    selected = MainTab.Arena,
+                    onHome = onNavigateToHome,
+                    onArena = { page = ArenaPage.Home },
+                    onProfile = onNavigateToProfile
+                )
+            }
         }
     ) { innerPadding ->
         Box(
@@ -55,29 +69,48 @@ fun ArenaScreen(
                 .padding(bottom = innerPadding.calculateBottomPadding())
         ) {
             ArenaAmbientBackdrop()
-            when (page) {
-                ArenaPage.Home -> ArenaHome(
-                    onBattleground = { page = ArenaPage.Battleground },
-                    onChallenges = { page = ArenaPage.Challenges },
-                    onGames = { page = ArenaPage.Games }
-                )
+            AnimatedContent(
+                targetState = page,
+                transitionSpec = {
+                    val direction = if (targetState.ordinal >= initialState.ordinal) {
+                        AnimatedContentTransitionScope.SlideDirection.Left
+                    } else {
+                        AnimatedContentTransitionScope.SlideDirection.Right
+                    }
+                    (slideIntoContainer(
+                        direction,
+                        animationSpec = tween(340, easing = FastOutSlowInEasing)
+                    ) + fadeIn(tween(180))) togetherWith
+                        (slideOutOfContainer(
+                            direction,
+                            animationSpec = tween(340, easing = FastOutSlowInEasing)
+                        ) + fadeOut(tween(180)))
+                },
+                label = "arenaPageTransition"
+            ) { targetPage ->
+                when (targetPage) {
+                    ArenaPage.Home -> ArenaHome(
+                        onBattleground = { page = ArenaPage.Battleground },
+                        onChallenges = { page = ArenaPage.Challenges },
+                        onGames = { page = ArenaPage.Games }
+                    )
 
-                ArenaPage.Battleground -> BattlegroundScreen(
-                    onBack = { page = ArenaPage.Home },
-                    snackbarHostState = snackbarHostState
-                )
+                    ArenaPage.Battleground -> BattlegroundScreen(
+                        onBack = { page = ArenaPage.Home },
+                        snackbarHostState = snackbarHostState
+                    )
 
-                ArenaPage.Challenges -> ChallengesScreen(
-                    onBack = { page = ArenaPage.Home },
-                    snackbarHostState = snackbarHostState
-                )
+                    ArenaPage.Challenges -> ChallengesScreen(
+                        onBack = { page = ArenaPage.Home },
+                        snackbarHostState = snackbarHostState
+                    )
 
-                ArenaPage.Games -> GamesScreen(
-                    onBack = { page = ArenaPage.Home },
-                    snackbarHostState = snackbarHostState
-                )
+                    ArenaPage.Games -> GamesScreen(
+                        onBack = { page = ArenaPage.Home },
+                        snackbarHostState = snackbarHostState
+                    )
+                }
             }
         }
     }
 }
-

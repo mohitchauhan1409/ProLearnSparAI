@@ -1,6 +1,15 @@
 package com.prolearn.spar.ui.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.IntOffset
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -19,7 +28,14 @@ import com.prolearn.spar.ui.screens.splash.SplashScreen
 
 @Composable
 fun ProLearnNavGraph(navController: NavHostController) {
-    NavHost(navController = navController, startDestination = Routes.Splash.route) {
+    NavHost(
+        navController = navController,
+        startDestination = Routes.Splash.route,
+        enterTransition = { premiumEnterTransition() },
+        exitTransition = { premiumExitTransition() },
+        popEnterTransition = { premiumPopEnterTransition() },
+        popExitTransition = { premiumPopExitTransition() }
+    ) {
 
         // ─── Splash ───────────────────────────────────────────────────────────
         composable(Routes.Splash.route) {
@@ -199,5 +215,73 @@ fun ProLearnNavGraph(navController: NavHostController) {
                 }
             )
         }
+    }
+}
+
+private const val NavMotionDuration = 360
+
+private fun motionSpec() = tween<IntOffset>(
+    durationMillis = NavMotionDuration,
+    easing = FastOutSlowInEasing
+)
+
+private fun alphaSpec() = tween<Float>(
+    durationMillis = 220,
+    easing = FastOutSlowInEasing
+)
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.premiumEnterTransition(): EnterTransition {
+    val direction = if (targetDepth() >= initialDepth()) {
+        AnimatedContentTransitionScope.SlideDirection.Left
+    } else {
+        AnimatedContentTransitionScope.SlideDirection.Right
+    }
+    return slideIntoContainer(direction, animationSpec = motionSpec()) + fadeIn(alphaSpec())
+}
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.premiumExitTransition(): ExitTransition {
+    val direction = if (targetDepth() >= initialDepth()) {
+        AnimatedContentTransitionScope.SlideDirection.Left
+    } else {
+        AnimatedContentTransitionScope.SlideDirection.Right
+    }
+    return slideOutOfContainer(direction, animationSpec = motionSpec()) + fadeOut(alphaSpec())
+}
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.premiumPopEnterTransition(): EnterTransition {
+    return slideIntoContainer(
+        AnimatedContentTransitionScope.SlideDirection.Right,
+        animationSpec = motionSpec()
+    ) + fadeIn(alphaSpec())
+}
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.premiumPopExitTransition(): ExitTransition {
+    return slideOutOfContainer(
+        AnimatedContentTransitionScope.SlideDirection.Right,
+        animationSpec = motionSpec()
+    ) + fadeOut(alphaSpec())
+}
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.initialDepth(): Int {
+    return routeDepth(initialState.destination.route)
+}
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.targetDepth(): Int {
+    return routeDepth(targetState.destination.route)
+}
+
+private fun routeDepth(route: String?): Int {
+    return when (route?.substringBefore("?")) {
+        Routes.Splash.route -> 0
+        Routes.Login.route -> 1
+        Routes.Signup.route -> 2
+        Routes.Home.route -> 10
+        Routes.Arena.route -> 11
+        Routes.Profile.route -> 12
+        Routes.Progress.route -> 13
+        Routes.SparSetup.route.substringBefore("?") -> 20
+        Routes.LiveSpar.route -> 21
+        Routes.SessionReport.route -> 22
+        else -> 10
     }
 }

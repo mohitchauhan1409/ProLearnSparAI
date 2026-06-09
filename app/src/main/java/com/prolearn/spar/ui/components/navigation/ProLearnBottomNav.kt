@@ -10,11 +10,14 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -55,22 +58,46 @@ fun ProLearnBottomNav(
             .fillMaxWidth()
             .background(
                 Brush.verticalGradient(
-                    listOf(Color.Transparent, Color(0xF8F8FAF7), Color(0xFFF8FAF7))
+                    listOf(
+                        Color.Transparent,
+                        Color(0xEEF8FAF7),
+                        Color(0xFFF8FAF7)
+                    )
                 )
             )
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
-                .shadow(18.dp, RoundedCornerShape(28.dp), ambientColor = Color.Black.copy(alpha = 0.10f), spotColor = Color.Black.copy(alpha = 0.10f))
-                .clip(RoundedCornerShape(28.dp))
-                .background(Color.White.copy(alpha = 0.92f))
-                .border(1.dp, Color.White, RoundedCornerShape(28.dp))
-                .padding(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                .widthIn(max = 430.dp)
+                .height(72.dp)
+                .shadow(
+                    28.dp,
+                    RoundedCornerShape(32.dp),
+                    ambientColor = Color.Black.copy(alpha = 0.14f),
+                    spotColor = Color.Black.copy(alpha = 0.12f)
+                )
+                .clip(RoundedCornerShape(32.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.98f),
+                            Color(0xFFF2F5EF).copy(alpha = 0.96f)
+                        )
+                    )
+                )
+                .border(
+                    1.dp,
+                    Brush.linearGradient(
+                        listOf(Color.White, Color(0xFFE1E8DE), Color.White.copy(alpha = 0.68f))
+                    ),
+                    RoundedCornerShape(32.dp)
+                )
+                .padding(7.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             NavItem("Home", Icons.Default.Home, selected == MainTab.Home, onHome, Modifier.weight(1f))
@@ -88,42 +115,77 @@ private fun NavItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val fill by animateColorAsState(if (selected) Color(0xFF151616) else Color.Transparent, label = "navFill")
-    val content by animateColorAsState(if (selected) Color.White else ProLearnColors.MutedDark, label = "navContent")
-    val scale by animateFloatAsState(if (selected) 1.02f else 1f, spring(dampingRatio = 0.72f), label = "navScale")
+    val iconFill by animateColorAsState(
+        if (selected) Color.White.copy(alpha = 0.18f) else Color(0xFFF0F4EE),
+        label = "navIconFill"
+    )
+    val content by animateColorAsState(
+        if (selected) Color.White else ProLearnColors.MutedDark,
+        label = "navContent"
+    )
+    val scale by animateFloatAsState(
+        if (selected) 1.03f else 1f,
+        spring(dampingRatio = 0.74f),
+        label = "navScale"
+    )
+    val shape = RoundedCornerShape(26.dp)
 
     Row(
         modifier = modifier
-            .height(52.dp)
+            .height(58.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
-            .clip(RoundedCornerShape(22.dp))
-            .background(fill)
+            .shadow(
+                if (selected) 14.dp else 0.dp,
+                shape,
+                ambientColor = Color(0xFF151616).copy(alpha = 0.16f),
+                spotColor = Color(0xFF151616).copy(alpha = 0.12f)
+            )
+            .clip(shape)
+            .background(
+                if (selected) {
+                    Brush.linearGradient(
+                        listOf(Color(0xFF151616), Color(0xFF29322D))
+                    )
+                } else {
+                    Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
+                }
+            )
+            .border(
+                1.dp,
+                if (selected) Color.White.copy(alpha = 0.12f) else Color.Transparent,
+                shape
+            )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 10.dp),
+            .padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
         Box(
             modifier = Modifier
-                .size(28.dp)
+                .size(34.dp)
                 .clip(CircleShape)
-                .background(if (selected) Color.White.copy(alpha = 0.16f) else Color(0xFFF1F4F0)),
+                .background(iconFill)
+                .border(
+                    1.dp,
+                    if (selected) Color.White.copy(alpha = 0.16f) else Color.White,
+                    CircleShape
+                ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = content, modifier = Modifier.size(17.dp))
+            Icon(icon, null, tint = content, modifier = Modifier.size(18.dp))
         }
-        androidx.compose.foundation.layout.Spacer(Modifier.size(7.dp))
+        Spacer(Modifier.width(7.dp))
         Text(
             label,
             fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.ExtraBold,
             color = content,
             fontFamily = BricolageGrotesqueFamily,
             maxLines = 1

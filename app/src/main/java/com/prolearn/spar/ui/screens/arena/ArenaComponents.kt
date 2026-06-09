@@ -313,7 +313,7 @@ fun ArenaFeatureCard(
 }
 
 @Composable
-fun PremiumPanel(accent: Color = Moss, content: @Composable ColumnScope.() -> Unit) {
+fun PremiumPanel(accent: Color = Moss, bgColor: Color = Color.White.copy(alpha = 0.82f),content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -324,7 +324,7 @@ fun PremiumPanel(accent: Color = Moss, content: @Composable ColumnScope.() -> Un
                 spotColor = accent.copy(alpha = 0.10f)
             )
             .clip(RoundedCornerShape(28.dp))
-            .background(Color.White.copy(alpha = 0.82f))
+            .background(bgColor)
             .border(1.dp, GlassStroke, RoundedCornerShape(28.dp))
             .padding(16.dp),
         content = content
