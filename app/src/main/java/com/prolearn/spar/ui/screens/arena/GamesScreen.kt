@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.prolearn.spar.R
 import com.prolearn.spar.ui.theme.ProLearnColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -72,6 +73,7 @@ fun GamesScreen(
     snackbarHostState: SnackbarHostState
 ) {
     var game by rememberSaveable { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     when (game) {
         "ludo" -> KnowledgeLudo { game = null }
         "word" -> WordBattlefield { game = null }
@@ -84,49 +86,61 @@ fun GamesScreen(
                 ) { onBack() }
             }
             item {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier.height(620.dp),
-                    userScrollEnabled = false,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ArenaFeatureCard(
+                    title = "Knowledge Ludo",
+                    eyebrow = "Board Battle",
+                    body = "Answer correctly to roll, race tokens around the board, and outpace the table.",
+                    meta = "4 players · All subjects · 70 XP",
+                    icon = Icons.Default.GridOn,
+                    accent = Moss,
+                    imageRes = R.drawable.arena_preview_games_collection,
+                    button = "Play"
                 ) {
-                    items(
-                        listOf(
-                            GameTile(
-                                "Knowledge Ludo",
-                                "4 players",
-                                "All subjects",
-                                "70 XP",
-                                Icons.Default.GridOn,
-                                Moss
-                            ) { game = "ludo" },
-                            GameTile(
-                                "Word Battlefield",
-                                "2 players",
-                                "Science terms",
-                                "60 XP",
-                                Icons.Default.AutoAwesome,
-                                Violet
-                            ) { game = "word" },
-                            GameTile(
-                                "Tower Defense",
-                                "Solo",
-                                "JEE/NEET",
-                                "Soon",
-                                Icons.Default.Shield,
-                                Coral
-                            ) { },
-                            GameTile(
-                                "Treasure Hunt",
-                                "Groups",
-                                "Classroom",
-                                "Soon",
-                                Icons.Default.EmojiEvents,
-                                Gold
-                            ) { }
-                        )
-                    ) { tile -> tile.Content(snackbarHostState) }
+                    game = "ludo"
+                }
+            }
+            item {
+                ArenaFeatureCard(
+                    title = "Word Battlefield",
+                    eyebrow = "Term Control",
+                    body = "Build syllabus words from tiles, claim the board, and beat the rival score.",
+                    meta = "2 players · Science terms · 60 XP",
+                    icon = Icons.Default.AutoAwesome,
+                    accent = Violet,
+                    imageRes = R.drawable.arena_preview_games_collection,
+                    button = "Play"
+                ) {
+                    game = "word"
+                }
+            }
+            item {
+                ArenaFeatureCard(
+                    title = "Tower Defense",
+                    eyebrow = "Solo Strategy",
+                    body = "Defend lanes with correct answers and upgrade knowledge towers across JEE and NEET topics.",
+                    meta = "Solo · JEE/NEET · Strategy",
+                    icon = Icons.Default.Shield,
+                    accent = Coral,
+                    imageRes = R.drawable.arena_preview_games_collection,
+                    button = "Coming soon",
+                    comingSoon = true
+                ) {
+                    scope.launch { snackbarHostState.showSnackbar("Tower Defense is coming soon") }
+                }
+            }
+            item {
+                ArenaFeatureCard(
+                    title = "Treasure Hunt",
+                    eyebrow = "Group Quest",
+                    body = "Solve clues with classmates, unlock checkpoints, and chase a classroom reward trail.",
+                    meta = "Groups · Classroom · Puzzle trail",
+                    icon = Icons.Default.EmojiEvents,
+                    accent = Gold,
+                    imageRes = R.drawable.arena_preview_games_collection,
+                    button = "Coming soon",
+                    comingSoon = true
+                ) {
+                    scope.launch { snackbarHostState.showSnackbar("Treasure Hunt is coming soon") }
                 }
             }
         }
@@ -531,4 +545,3 @@ fun WinnerPanel(won: Boolean, xp: Int, onDone: () -> Unit) {
         PremiumButton("Claim XP", Icons.Default.Star, onDone)
     }
 }
-

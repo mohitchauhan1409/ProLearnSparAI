@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,9 +44,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.prolearn.spar.R
 import com.prolearn.spar.ui.theme.BricolageGrotesqueFamily
 import com.prolearn.spar.ui.theme.ProLearnColors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun ChallengesScreen(
@@ -53,45 +56,63 @@ fun ChallengesScreen(
     snackbarHostState: SnackbarHostState
 ) {
     var challenge by rememberSaveable { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     when (challenge) {
         "pdf" -> PdfChallenge { challenge = null }
         "youtube" -> YouTubeChallenge { challenge = null }
         else -> ArenaList {
             item { ArenaHeader("Challenges", "Study, test, recall, earn.", "Arena") { onBack() } }
             item {
-                ChallengeCard(
-                    "PDF Challenge",
-                    "Biology",
-                    "4 min",
-                    "50 XP",
-                    Icons.Default.PictureAsPdf,
-                    Blue
+                ArenaFeatureCard(
+                    title = "PDF Challenge",
+                    eyebrow = "Read Sprint",
+                    body = "Read a sharp study passage, beat the timer, then prove recall with a short test.",
+                    meta = "Biology · 4 min · 50 XP",
+                    icon = Icons.Default.PictureAsPdf,
+                    accent = Blue,
+                    imageRes = R.drawable.arena_preview_pdf_challenge,
+                    button = "Start"
                 ) { challenge = "pdf" }
             }
             item {
-                ChallengeCard(
-                    "YouTube Challenge",
-                    "Physics",
-                    "5 min",
-                    "50 XP",
-                    Icons.Default.PlayCircle,
-                    Coral
+                ArenaFeatureCard(
+                    title = "YouTube Challenge",
+                    eyebrow = "Video Checkpoints",
+                    body = "Watch a lesson with timed questions that keep attention active from start to finish.",
+                    meta = "Physics · 5 min · 50 XP",
+                    icon = Icons.Default.PlayCircle,
+                    accent = Coral,
+                    imageRes = R.drawable.arena_preview_youtube_challenge,
+                    button = "Start"
                 ) { challenge = "youtube" }
             }
             item {
-                ComingSoonStatic(
-                    "Image Challenge",
-                    "You will be shown a diagram, circuit, or biology figure and asked to label or answer questions about it. Perfect for NEET and board exams.",
-                    Icons.Default.Science
-                )
+                ArenaFeatureCard(
+                    title = "Image Challenge",
+                    eyebrow = "Visual Recall",
+                    body = "Label diagrams, circuits, microscope slides, and figures with exam-style prompts.",
+                    meta = "NEET · Boards · Diagram mastery",
+                    icon = Icons.Default.Science,
+                    accent = Moss,
+                    imageRes = R.drawable.arena_preview_image_challenge,
+                    button = "Coming soon",
+                    comingSoon = true
+                ) {}
             }
             item {
-                ComingSoonCard(
-                    "Live Debate Challenge",
-                    "Get a topic, type your argument, and let other students vote on who wins. Great for CUET and critical thinking practice.",
-                    Icons.Default.Groups,
-                    snackbarHostState
-                )
+                ArenaFeatureCard(
+                    title = "Live Debate Challenge",
+                    eyebrow = "Argument Arena",
+                    body = "Get a topic, build your argument, and let students vote on the stronger case.",
+                    meta = "CUET · Critical thinking · Peer votes",
+                    icon = Icons.Default.Groups,
+                    accent = Violet,
+                    imageRes = R.drawable.arena_preview_watch_live,
+                    button = "Notify me",
+                    comingSoon = true
+                ) {
+                    scope.launch { snackbarHostState.showSnackbar("Live Debate Challenge notifications enabled") }
+                }
             }
         }
     }
@@ -457,4 +478,3 @@ fun TimestampQuestion(at: Int, onAnswered: () -> Unit) {
         PremiumButton("Motion", Icons.Default.CheckCircle, onAnswered)
     }
 }
-

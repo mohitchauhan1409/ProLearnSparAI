@@ -1,5 +1,6 @@
 package com.prolearn.spar.ui.screens.arena
 
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -7,6 +8,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -43,8 +46,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -80,8 +86,8 @@ fun ArenaHeader(
         Column(Modifier.weight(1f)) {
             Text(
                 title,
-                fontSize = 34.sp,
-                lineHeight = 36.sp,
+                fontSize = 30.sp,
+                lineHeight = 32.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = Ink,
                 fontFamily = BricolageGrotesqueFamily
@@ -101,9 +107,11 @@ fun ArenaHeader(
 
 @Composable
 fun SectionTitle(title: String, subtitle: String) {
-    Column(Modifier
-        .fillMaxWidth()
-        .padding(top = 16.dp)) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp)
+    ) {
         Text(
             title,
             fontSize = 21.sp,
@@ -142,6 +150,165 @@ fun ModeCard(
         }
         Spacer(Modifier.height(14.dp))
         PremiumButton(button, Icons.Default.Bolt, onClick)
+    }
+}
+
+@Composable
+fun ArenaFeatureCard(
+    title: String,
+    eyebrow: String,
+    body: String,
+    meta: String,
+    icon: ImageVector,
+    accent: Color,
+    @DrawableRes imageRes: Int,
+    button: String,
+    comingSoon: Boolean = false,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(
+                22.dp,
+                RoundedCornerShape(28.dp),
+                ambientColor = accent.copy(alpha = 0.16f),
+                spotColor = accent.copy(alpha = 0.16f)
+            )
+            .clip(RoundedCornerShape(28.dp))
+            .background(Color.White.copy(alpha = 0.9f))
+            .border(1.dp, GlassStroke, RoundedCornerShape(28.dp))
+            .clickable(onClick = onClick)
+            .padding(10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16 / 9f)
+                .clip(RoundedCornerShape(22.dp))
+        ) {
+            Image(
+                painter = painterResource(imageRes),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            0.56f to Color(0x11000000),
+                            1f to Color(0xB8000000)
+                        )
+                    )
+            )
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(12.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(Color.White.copy(alpha = 0.9f))
+                    .border(1.dp, Color.White.copy(alpha = 0.75f), RoundedCornerShape(100.dp))
+                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(icon, null, tint = accent, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    eyebrow,
+                    color = Ink,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontFamily = BricolageGrotesqueFamily
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(14.dp)
+            ) {
+                Text(
+                    title,
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    lineHeight = 26.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontFamily = BricolageGrotesqueFamily
+                )
+                Text(
+                    meta,
+                    color = Color.White.copy(alpha = 0.82f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (comingSoon) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color(0x52000000),
+                                    Color(0x25000000),
+                                    Color(0x85000000)
+                                )
+                            )
+                        )
+                )
+                Text(
+                    "COMING SOON",
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp)
+                        .shadow(12.dp, RoundedCornerShape(100.dp))
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(Ink.copy(alpha = 0.9f))
+                        .border(1.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(100.dp))
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontFamily = BricolageGrotesqueFamily
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    body,
+                    color = ProLearnColors.MutedDark,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    fontFamily = BricolageGrotesqueFamily
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(
+                button,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(if (comingSoon) Gold.copy(alpha = 0.18f) else Ink)
+                    .border(
+                        1.dp,
+                        if (comingSoon) Gold.copy(alpha = 0.32f) else Ink,
+                        RoundedCornerShape(100.dp)
+                    )
+                    .padding(horizontal = 13.dp, vertical = 9.dp),
+                color = if (comingSoon) Ink else Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.ExtraBold,
+                fontFamily = BricolageGrotesqueFamily
+            )
+        }
     }
 }
 

@@ -43,6 +43,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,8 +55,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.prolearn.spar.R
 import com.prolearn.spar.ui.theme.ProLearnColors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 enum class BattleKind { Erangel, Room }
@@ -66,54 +69,80 @@ fun BattlegroundScreen(
     snackbarHostState: SnackbarHostState
 ) {
     var mode by rememberSaveable { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     when (mode) {
         "erangel" -> BattleFlow(BattleKind.Erangel, onExit = { mode = null })
         "room" -> BattleFlow(BattleKind.Room, onExit = { mode = null })
         else -> ArenaList {
             item { ArenaHeader("Battleground", "Choose your combat style.", "Arena") { onBack() } }
             item {
-                ModeCard(
-                    "Erangel",
-                    "Many vs many quiz battle with a live leaderboard.",
-                    Icons.Default.Groups,
-                    Coral,
-                    "Find players"
+                ArenaFeatureCard(
+                    title = "Erangel",
+                    eyebrow = "Squad Battle",
+                    body = "Drop into a many-vs-many quiz battle with live rankings, fast streaks, and clutch comeback moments.",
+                    meta = "Many players · Live leaderboard · 100 XP",
+                    icon = Icons.Default.Groups,
+                    accent = Coral,
+                    imageRes = R.drawable.arena_preview_erangel,
+                    button = "Find players"
                 ) {
                     mode = "erangel"
                 }
             }
             item {
-                ModeCard(
-                    "Battle Room",
-                    "A sharp 1v1 duel with health bars and instant damage.",
-                    Icons.Default.Shield,
-                    Violet,
-                    "Find opponent"
+                ArenaFeatureCard(
+                    title = "Battle Room",
+                    eyebrow = "1v1 Duel",
+                    body = "Face one rival in a focused answer duel where every correct response hits harder.",
+                    meta = "Two players · Health duel · 80 XP",
+                    icon = Icons.Default.Shield,
+                    accent = Violet,
+                    imageRes = R.drawable.arena_preview_battle_room,
+                    button = "Find opponent"
                 ) {
                     mode = "room"
                 }
             }
             item {
-                ComingSoonCard(
-                    "Custom Battle",
-                    "Create your own room, invite friends or classmates, and battle on your terms. Your teacher can also host a class battle here.",
-                    Icons.Default.GridOn,
-                    snackbarHostState
-                )
+                ArenaFeatureCard(
+                    title = "Custom Battle",
+                    eyebrow = "Private Room",
+                    body = "Create a room, invite friends or classmates, and let teachers host class battles on their terms.",
+                    meta = "Invite link · Class rooms · Host controls",
+                    icon = Icons.Default.GridOn,
+                    accent = Moss,
+                    imageRes = R.drawable.arena_preview_custom_battle,
+                    button = "Notify me",
+                    comingSoon = true
+                ) {
+                    scope.launch { snackbarHostState.showSnackbar("Custom Battle notifications enabled") }
+                }
             }
             item {
-                ComingSoonStatic(
-                    "Scheduled Battle",
-                    "Schedule a battle in advance, send invites, and fight at a set time. Like a planned match.",
-                    Icons.Default.Timer
-                )
+                ArenaFeatureCard(
+                    title = "Scheduled Battle",
+                    eyebrow = "Tournament Slot",
+                    body = "Plan a battle in advance, send invites, and meet the room exactly when the timer opens.",
+                    meta = "Calendar match · Reminders · Invites",
+                    icon = Icons.Default.Timer,
+                    accent = Blue,
+                    imageRes = R.drawable.arena_preview_scheduled_battle,
+                    button = "Coming soon",
+                    comingSoon = true
+                ) {}
             }
             item {
-                ComingSoonStatic(
-                    "Watch Live",
-                    "Watch top students battle live and react with emojis. The best battles get featured here.",
-                    Icons.Default.Videocam
-                )
+                ArenaFeatureCard(
+                    title = "Watch Live",
+                    eyebrow = "Spectator Mode",
+                    body = "Watch top students battle live, react to tight rounds, and catch featured learning matches.",
+                    meta = "Live matches · Reactions · Replays",
+                    icon = Icons.Default.Videocam,
+                    accent = Gold,
+                    imageRes = R.drawable.arena_preview_watch_live,
+                    button = "Coming soon",
+                    comingSoon = true
+                ) {}
             }
         }
     }
