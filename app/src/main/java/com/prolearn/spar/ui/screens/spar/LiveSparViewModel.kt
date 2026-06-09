@@ -301,6 +301,8 @@ class LiveSparViewModel @Inject constructor(
 
     private fun submitImageNow(name: String, mimeType: String, bytes: ByteArray) {
         val prompt = """
+            ${materialResponseRules("image")}
+
             The student shared an image named "$name".
             Study the image carefully. Explain what you see, connect it to ${sessionConfig?.subject ?: "the session topic"}, and help the student learn from it.
             If it contains a question, solve it step by step. If it contains notes, summarize and teach the key concept.
@@ -320,6 +322,8 @@ class LiveSparViewModel @Inject constructor(
 
     private fun submitDocumentNow(name: String, mimeType: String, bytes: ByteArray) {
         val prompt = """
+            ${materialResponseRules("PDF")}
+
             The student shared a study document named "$name".
             Read the document and teach the most important parts for this ${sessionConfig?.sessionType ?: "Learning"} session.
             Start with a short summary, then explain the first useful concept, then ask one tiny check question.
@@ -353,12 +357,9 @@ class LiveSparViewModel @Inject constructor(
                         transcript = transcript.text,
                         sourceUrl = clean
                     )
-                    if (!shouldAnswerFromMaterialNow(history, material.kind)) {
-                        pendingStudyMaterial = material
-                        askMaterialFocus(material)
-                        return@onSuccess
-                    }
                     val prompt = """
+                        ${materialResponseRules("YouTube video")}
+
                         The student wants to study from this YouTube video: $clean
                         I fetched the video transcript. Use it to teach, not just summarize.
                         First give the core idea, then explain the most important learning points, then ask one tiny check question.
@@ -367,6 +368,19 @@ class LiveSparViewModel @Inject constructor(
                         Transcript:
                         ${transcript.text.take(12000)}
                     """.trimIndent()
+                    if (!shouldAnswerFromMaterialNow(history, material.kind)) {
+                        if (isGenericSession()) {
+                            pendingStudyMaterial = material
+                            askMaterialFocus(material)
+                        } else {
+                            sendHiddenTutorPrompt(
+                                history = history,
+                                prompt = prompt,
+                                status = "Checking video..."
+                            )
+                        }
+                        return@onSuccess
+                    }
                     sendHiddenTutorPrompt(
                         history = history,
                         prompt = prompt,
@@ -376,6 +390,8 @@ class LiveSparViewModel @Inject constructor(
                 .onFailure { e ->
                     Log.e(TAG, "YouTube transcript failed: ${e.message}")
                     val fallbackPrompt = """
+                        ${materialResponseRules("YouTube video")}
+
                         The student shared this YouTube video: $clean
                         I could not fetch captions automatically, likely because captions are disabled or private.
                         Ask the student to paste the transcript, title, timestamp, or notes, and then help them study from it.
@@ -449,8 +465,24 @@ class LiveSparViewModel @Inject constructor(
             bytes = bytes
         )
         if (!shouldAnswerFromMaterialNow(history, material.kind)) {
-            pendingStudyMaterial = material
-            askMaterialFocus(material)
+            if (isGenericSession()) {
+                pendingStudyMaterial = material
+                askMaterialFocus(material)
+            } else {
+                viewModelScope.launch {
+                    _state.value = SparState.AiEvaluating
+                    setStatus("Checking attachment...")
+                    sparRepository.sendAttachmentMessage(history, systemPrompt, prompt, mimeType, bytes)
+                        .onSuccess { response ->
+                            handleTutorResponse(response, emptyMessage = "Attachment response was empty. Tap to retry.")
+                        }
+                        .onFailure { e ->
+                            Log.e(TAG, "attachment relevance check failed: ${e.message}")
+                            _state.value = SparState.Error("Could not study that attachment. Tap to retry.")
+                            haptics.error()
+                        }
+                }
+            }
             return
         }
         viewModelScope.launch {
@@ -536,13 +568,60 @@ class LiveSparViewModel @Inject constructor(
         }
     }
 
+    private fun materialResponseRules(kind: String): String {
+        val config = sessionConfig
+        val languageRule = if (isHinglishTeacher()) {
+            """
+            LANGUAGE RULE:
+            - Reply only in natural Roman Hinglish, even if the $kind content is in English or another language.
+            - Do not switch to pure English just because the study material is in English.
+            - Keep the tone like a real Indian tutor: simple, spoken, and TTS-friendly.
+            """.trimIndent()
+        } else {
+            """
+            LANGUAGE RULE:
+            - Reply in natural English unless the student explicitly asks for another language.
+            - Keep the tone spoken and TTS-friendly.
+            """.trimIndent()
+        }
+
+        val relevanceRule = if (config != null && !isGenericSession()) {
+            val currentTopic = "${config.subject} - ${config.chapter}"
+            val mismatchMessage = if (isHinglishTeacher()) {
+                "Aapne jo material add kiya hai woh current topic se match nahi kar raha. Abhi hum $currentTopic discuss kar rahe hain, please isi topic ka PDF, video, image, ya question add karo."
+            } else {
+                "The material you added does not match the current topic. We are discussing $currentTopic, so please add a PDF, video, image, or question from this topic."
+            }
+            """
+            TOPIC RELEVANCE RULE:
+            - Current session focus: $currentTopic.
+            - First inspect whether the $kind is about this same subject and chapter/topic.
+            - If the $kind is clearly from a different chapter, topic, subject, or unrelated material, do not summarize or teach it.
+            - In that case, say exactly this meaning in your own natural voice: "$mismatchMessage"
+            - If the $kind is relevant or only mildly broader, continue teaching normally.
+            """.trimIndent()
+        } else {
+            """
+            TOPIC RELEVANCE RULE:
+            - This is a Generic/open session, so the student may add any useful study material.
+            - Do not reject material just because it is from a different chapter or topic.
+            """.trimIndent()
+        }
+
+        return "$languageRule\n\n$relevanceRule"
+    }
+
     private fun askMaterialFocus(material: PendingStudyMaterial) {
         val label = when (material.kind.lowercase()) {
             "youtube" -> "video"
             "pdf" -> "PDF"
             else -> material.kind
         }
-        val message = "Got it. What do you want to learn from this $label? You can ask for a summary, a doubt, an explanation, or a specific timestamp/page/question."
+        val message = if (isHinglishTeacher()) {
+            "Got it. Is $label se kya padhna hai? Summary, doubt, explanation, ya specific page, timestamp, ya question bata do."
+        } else {
+            "Got it. What do you want to learn from this $label? You can ask for a summary, a doubt, an explanation, or a specific timestamp/page/question."
+        }
         viewModelScope.launch {
             speakText(message)
         }
@@ -562,6 +641,15 @@ class LiveSparViewModel @Inject constructor(
         return materialWords.any { it in recent } && inviteWords.any { it in recent }
     }
 
+    private fun isGenericSession(): Boolean =
+        sessionConfig?.chapter.equals("Generic", ignoreCase = true)
+
+    private fun isHinglishTeacher(): Boolean = when (sessionConfig?.voiceId) {
+        "LHJy3mhZWsvhUjy0zUM1",
+        "MF4J4IDTRo0AxOO4dpFR" -> true
+        else -> false
+    }
+
     private fun handlePendingMaterialAnswer(answer: String, material: PendingStudyMaterial): Boolean {
         pendingStudyMaterial = null
         val history = _messages.value
@@ -570,6 +658,8 @@ class LiveSparViewModel @Inject constructor(
         Log.i(TAG, "handlePendingMaterialAnswer() kind=${material.kind} answer='${answer.take(80)}'")
 
         val prompt = """
+            ${materialResponseRules(material.kind)}
+
             The student previously shared this ${material.kind}: ${material.name}
             They now asked: "$answer"
 

@@ -6,6 +6,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.prolearn.spar.ui.screens.arena.ArenaScreen
 import com.prolearn.spar.ui.screens.auth.LoginScreen
 import com.prolearn.spar.ui.screens.auth.SignupScreen
 import com.prolearn.spar.ui.screens.home.HomeScreen
@@ -79,6 +80,33 @@ fun ProLearnNavGraph(navController: NavHostController) {
                 onNavigateToProfile = {
                     navController.navigate(Routes.Profile.route) {
                         popUpTo(Routes.Home.route) { saveState = true }
+                    }
+                },
+                onNavigateToArena = {
+                    navController.navigate(Routes.Arena.route) {
+                        popUpTo(Routes.Home.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            )
+        }
+
+        // ─── Arena ───────────────────────────────────────────────────────────
+        composable(Routes.Arena.route) {
+            ArenaScreen(
+                onNavigateToHome = {
+                    navController.navigate(Routes.Home.route) {
+                        popUpTo(Routes.Home.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                onNavigateToProfile = {
+                    navController.navigate(Routes.Profile.route) {
+                        popUpTo(Routes.Home.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
                     }
                 }
             )
@@ -154,6 +182,13 @@ fun ProLearnNavGraph(navController: NavHostController) {
                 },
                 onNavigateToProgress = {
                     navController.navigate(Routes.Progress.route)
+                },
+                onNavigateToArena = {
+                    navController.navigate(Routes.Arena.route) {
+                        popUpTo(Routes.Home.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 },
                 onLogout = {
                     // Clear the entire back stack and restart from Splash

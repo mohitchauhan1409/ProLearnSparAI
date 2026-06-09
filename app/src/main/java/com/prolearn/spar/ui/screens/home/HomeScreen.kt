@@ -76,6 +76,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.prolearn.spar.R
+import com.prolearn.spar.ui.components.navigation.MainTab
+import com.prolearn.spar.ui.components.navigation.ProLearnBottomNav
 import com.prolearn.spar.ui.components.ui.Avatar
 import com.prolearn.spar.ui.theme.BricolageGrotesqueFamily
 import com.prolearn.spar.ui.theme.ProLearnColors
@@ -106,7 +108,8 @@ private data class FeatureCard(
 fun HomeScreen(
     onNavigateToSparSetup: (String?) -> Unit,
     onNavigateToProgress: () -> Unit,
-    onNavigateToProfile: () -> Unit
+    onNavigateToProfile: () -> Unit,
+    onNavigateToArena: () -> Unit
 ) {
     val viewModel: HomeViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     val streak by viewModel.streak.collectAsState()
@@ -164,8 +167,18 @@ fun HomeScreen(
         }
 
         FloatingActionDock(
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 78.dp),
             onStart = { onNavigateToSparSetup(null) }
+        )
+
+        ProLearnBottomNav(
+            selected = MainTab.Home,
+            onHome = {},
+            onArena = onNavigateToArena,
+            onProfile = onNavigateToProfile,
+            modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
 }

@@ -5,6 +5,7 @@ sealed class Routes(val route: String) {
     data object Login : Routes("login")
     data object Signup : Routes("signup")
     data object Home : Routes("home")
+    data object Arena : Routes("arena")
     data object SparSetup : Routes("spar_setup?subject={subject}&chapter={chapter}") {
         fun withArgs(subject: String? = null, chapter: String? = null): String {
             val subj = subject ?: ""

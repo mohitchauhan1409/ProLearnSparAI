@@ -70,7 +70,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.prolearn.spar.ui.components.navigation.MainTab
+import com.prolearn.spar.ui.components.navigation.ProLearnBottomNav
 import com.prolearn.spar.ui.components.ui.Avatar
+import com.prolearn.spar.ui.screens.arena.ArenaXpStore
 import com.prolearn.spar.ui.screens.auth.AuthViewModel
 import com.prolearn.spar.ui.screens.home.HomeViewModel
 import com.prolearn.spar.ui.theme.BricolageGrotesqueFamily
@@ -93,6 +96,7 @@ private data class FaqItem(val question: String, val answer: String)
 fun ProfileScreen(
     onNavigateToHome: () -> Unit,
     onNavigateToProgress: () -> Unit,
+    onNavigateToArena: () -> Unit,
     onLogout: () -> Unit,
     homeViewModel: HomeViewModel = hiltViewModel(),
     authViewModel: AuthViewModel = hiltViewModel()
@@ -100,6 +104,7 @@ fun ProfileScreen(
     val currentUser by homeViewModel.currentUser.collectAsState()
     val streak by homeViewModel.streak.collectAsState()
     val totalSessions by homeViewModel.totalSessions.collectAsState()
+    val arenaXp by ArenaXpStore.totalXp.collectAsState()
     val streakReminders by homeViewModel.streakRemindersEnabled.collectAsState()
     var showSignOutDialog by remember { mutableStateOf(false) }
 
@@ -172,7 +177,8 @@ fun ProfileScreen(
                     email = currentUser?.email.orEmpty(),
                     examTarget = currentUser?.examTarget ?: "JEE Advanced",
                     streak = streak,
-                    sessions = totalSessions
+                    sessions = totalSessions,
+                    arenaXp = arenaXp
                 )
             }
 
@@ -248,6 +254,14 @@ fun ProfileScreen(
 
             Spacer(Modifier.height(12.dp))
         }
+
+        ProLearnBottomNav(
+            selected = MainTab.Profile,
+            onHome = onNavigateToHome,
+            onArena = onNavigateToArena,
+            onProfile = {},
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }
 
@@ -258,7 +272,8 @@ private fun ProfileHero(
     email: String,
     examTarget: String,
     streak: Int,
-    sessions: Int
+    sessions: Int,
+    arenaXp: Int
 ) {
     SettingsPanel {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -294,8 +309,10 @@ private fun ProfileHero(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 MiniStat("$streak", "day streak", Modifier.weight(1f))
                 MiniStat("$sessions", "sessions", Modifier.weight(1f))
-                MiniStat(examTarget, "target", Modifier.weight(1f))
+                MiniStat("$arenaXp XP", "arena", Modifier.weight(1f))
             }
+            Spacer(Modifier.height(10.dp))
+            MiniStat(examTarget, "target", Modifier.fillMaxWidth())
         }
     }
 }

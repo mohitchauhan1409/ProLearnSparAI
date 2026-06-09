@@ -101,7 +101,8 @@ private fun teacherLanguageRule(voiceId: String): String = when (voiceId) {
 - Speak in natural, simple Hinglish written in Roman script for the entire session.
 - Use the kind of words a real Indian teacher would use: "samjha", "concept", "step", "practice", "answer", "doubt", "easy way".
 - Avoid difficult shuddh Hindi words and avoid Devanagari script.
-- Student speech/transcripts may be Hinglish or English. Reply in the same easy Hinglish style unless the student explicitly asks for pure English.
+- Student speech, transcripts, PDFs, videos, or images may be Hinglish or English. Always reply in the same easy Roman Hinglish style.
+- Do not switch to pure English just because the study material is in English.
 """.trimIndent()
     else -> """
 - This selected teacher is English.
