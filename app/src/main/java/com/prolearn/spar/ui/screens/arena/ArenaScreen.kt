@@ -1500,16 +1500,16 @@ private fun ArenaDestinationCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(if (primary) 232.dp else 202.dp)
+            .height(202.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
             .shadow(
-                if (primary) 20.dp else 12.dp,
+                12.dp,
                 RoundedCornerShape(26.dp),
-                ambientColor = Ink.copy(alpha = if (primary) 0.10f else 0.07f),
-                spotColor = Ink.copy(alpha = if (primary) 0.10f else 0.07f)
+                ambientColor = Ink.copy(alpha = 0.07f),
+                spotColor = Ink.copy(alpha = 0.07f)
             )
             .clip(RoundedCornerShape(26.dp))
             .background(
@@ -1522,37 +1522,19 @@ private fun ArenaDestinationCard(
             .border(1.dp, Ink.copy(alpha = 0.07f), RoundedCornerShape(26.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
     ) {
-        Canvas(Modifier.matchParentSize()) {
-            drawCircle(
-                accent.copy(alpha = 0.07f),
-                size.minDimension * 0.38f,
-                Offset(size.width * 0.90f, size.height * 0.24f)
-            )
-            drawLine(
-                Ink.copy(alpha = 0.06f),
-                Offset(0f, size.height * 0.72f),
-                Offset(size.width, size.height * 0.72f),
-                1.5f
-            )
-        }
-        Image(
-            painter = painterResource(id = artRes),
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 12.dp, end = 10.dp)
-                .width(if (primary) 138.dp else 122.dp)
-                .height(if (primary) 104.dp else 92.dp)
-        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.Top) {
-                Column(Modifier.fillMaxWidth(if (primary) 0.66f else 0.70f)) {
+            // ── Top row: text + art ──────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top,           // ← top-align both sides
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                     Text(
                         kicker,
                         fontSize = 10.sp,
@@ -1562,7 +1544,7 @@ private fun ArenaDestinationCard(
                     )
                     Text(
                         title,
-                        fontSize = if (primary) 28.sp else 24.sp,
+                        fontSize = 24.sp,
                         lineHeight = 28.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Ink
@@ -1577,15 +1559,29 @@ private fun ArenaDestinationCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+
+                Image(
+                    painter = painterResource(id = artRes),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .size(100.dp)
+                        .align(Alignment.Top)   // ← pin image to top of Row
+                )
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
+
+            // ── Bottom row: chips + CTA ──────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 DestinationChip(reward, Icons.Default.Star, accent)
                 Spacer(Modifier.width(8.dp))
                 DestinationChip(players, Icons.Default.Groups, Ink)
                 Spacer(Modifier.weight(1f))
                 Row(
                     modifier = Modifier
-                        .height(42.dp)
+                        .height(38.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(Ink)
                         .padding(horizontal = 13.dp),
