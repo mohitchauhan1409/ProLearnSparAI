@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import com.prolearn.spar.ui.components.navigation.MainTab
 import com.prolearn.spar.ui.components.navigation.ProLearnBottomNav
 import com.prolearn.spar.ui.screens.arena.battleground.BattlegroundScreen
+import com.prolearn.spar.ui.screens.arena.challenges.ChallengesScreen
 
 private enum class ArenaPage { Home, Battleground, Challenges, Games }
 
