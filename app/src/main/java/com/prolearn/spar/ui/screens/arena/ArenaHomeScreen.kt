@@ -97,7 +97,7 @@ fun ArenaHome(
                 artRes = R.drawable.arena_art_battleground,
                 accent = Coral,
                 reward = "Up to 100 XP",
-                players = "6 online",
+                players = "60+ online",
                 primary = true,
                 button = "Find battle",
                 onClick = onBattleground
