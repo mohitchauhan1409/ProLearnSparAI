@@ -69,6 +69,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.motionEventSpy
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -194,7 +195,6 @@ fun BattlegroundScreen(
         BattlegroundView.ArenaPicker -> ArenaPicker(
             kind = kind,
             selectedArena = arena,
-            onSelect = { arenaId = it.id },
             onPlaybook = {
                 arenaId = it.id
                 view = BattlegroundView.Playbook
@@ -229,26 +229,33 @@ fun BattlegroundScreen(
 private fun ArenaPicker(
     kind: BattleKind,
     selectedArena: BattleArena,
-    onSelect: (BattleArena) -> Unit,
     onPlaybook: (BattleArena) -> Unit,
     onStart: (BattleArena) -> Unit
 ) {
+    val arenaRows = battleArenas.chunked(2)
+
     ArenaList {
         item {
             ArenaHeader(
-                title = if (kind == BattleKind.Erangel) "Learn Erangel" else "1v1 Battle Room",
-                subtitle = "Pick a subject and jump in.",
-                action = "Read playbook",
+                title = if (kind == BattleKind.Erangel) "Select Subject" else "1v1 Battle Room",
+                subtitle = "Choose a subject and begin your battle.",                action = "Read playbook",
                 onAction = { onPlaybook(selectedArena) }
             )
+            Spacer(modifier = Modifier.height(20.dp))
         }
-        items(battleArenas.size) { index ->
-            SubjectArenaCard(
-                arena = battleArenas[index],
-                selected = battleArenas[index].id == selectedArena.id,
-                onClick = { onSelect(battleArenas[index]) },
-                onStart = { onStart(battleArenas[index]) }
-            )
+        items(arenaRows.size) { rowIndex ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(22.dp)
+            ) {
+                arenaRows[rowIndex].forEach { arena ->
+                    SubjectArenaCard(
+                        arena = arena,
+                        modifier = Modifier.weight(1f),
+                        onStart = { onStart(arena) }
+                    )
+                }
+            }
         }
     }
 }
@@ -461,89 +468,22 @@ private fun BattleSummaryStrip(kind: BattleKind, arena: BattleArena) {
 @Composable
 private fun SubjectArenaCard(
     arena: BattleArena,
-    selected: Boolean,
-    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     onStart: () -> Unit
 ) {
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RoundedCornerShape(22.dp)
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
+    Image(
+        painter = painterResource(arena.imageRes),
+        contentDescription = arena.subject,
+        contentScale = ContentScale.Crop,
+        modifier = modifier
+            .aspectRatio(1f)
+            .shadow(7.dp, shape)
             .clip(shape)
-            .background(Color.White.copy(alpha = 0.92f))
-            .border(
-                width = 1.dp,
-                color = arena.accent.copy(alpha = 0.44f),
-                shape = shape
-            )
-            .clickable(onClick = onClick)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(168.dp)
-        ) {
-            Image(
-                painter = painterResource(arena.imageRes),
-                contentDescription = arena.subject,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            0f to Color.Transparent,
-                            0.52f to Color.Black.copy(alpha = 0.08f),
-                            1f to Color.Black.copy(alpha = 0.72f)
-                        )
-                    )
-            )
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(16.dp)
-            ) {
-                Text(
-                    arena.subject,
-                    fontSize = 24.sp,
-                    lineHeight = 26.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color.White,
-                    fontFamily = BricolageGrotesqueFamily,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    arena.subtitle,
-                    fontSize = 13.sp,
-                    color = Color.White.copy(alpha = 0.84f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(15.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                arena.description,
-                modifier = Modifier.weight(1f),
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-                color = ProLearnColors.MutedDark,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.width(12.dp))
-            SolidAction("Enter now", Icons.Default.ArrowForward, Modifier.width(124.dp), onStart)
-        }
-    }
+            .border(1.dp, Color.White.copy(alpha = 0.82f), shape)
+            .clickable(onClick = onStart)
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)
