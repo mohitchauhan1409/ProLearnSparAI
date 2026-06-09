@@ -15,6 +15,14 @@ object ArenaXpStore {
         if (amount > 0) _totalXp.update { it + amount }
     }
 
+    fun spendXp(amount: Int): Boolean {
+        if (amount <= 0) return true
+        val current = _totalXp.value
+        if (current < amount) return false
+        _totalXp.value = current - amount
+        return true
+    }
+
     fun rankFor(xp: Int): String = when {
         xp >= 1200 -> "Legend"
         xp >= 800 -> "Diamond"
