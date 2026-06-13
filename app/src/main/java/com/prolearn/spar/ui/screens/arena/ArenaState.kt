@@ -70,15 +70,15 @@ data class ArenaQuestion(
 
 val battlePlayers = listOf(
     ArenaPlayer("You", "JEE Main · Gold", "YO", R.drawable.arena_avatar_student_01),
-    ArenaPlayer("Aarav", "JEE Main · Gold", "AA", R.drawable.arena_avatar_student_02),
-    ArenaPlayer("Mira", "JEE Advanced · Gold", "MI", R.drawable.arena_avatar_student_03),
-    ArenaPlayer("Kabir", "JEE Main · Silver", "KA", R.drawable.arena_avatar_student_04),
-    ArenaPlayer("Isha", "JEE Main · Gold", "IS", R.drawable.arena_avatar_student_05),
-    ArenaPlayer("Riya", "JEE Main · Silver", "RI", R.drawable.arena_avatar_student_06),
+    ArenaPlayer("Aarav", "JEE Main · Gold", "AA", R.drawable.arena_avatar_student_03),
+    ArenaPlayer("Mira", "JEE Advanced · Gold", "MI", R.drawable.arena_avatar_student_02),
+    ArenaPlayer("Kabir", "JEE Main · Silver", "KA", R.drawable.arena_avatar_student_06),
+    ArenaPlayer("Isha", "JEE Main · Gold", "IS", R.drawable.arena_avatar_student_04),
+    ArenaPlayer("Riya", "JEE Main · Silver", "RI", R.drawable.arena_avatar_student_05),
     ArenaPlayer("Naina", "JEE Advanced · Gold", "NA", R.drawable.arena_avatar_student_07),
     ArenaPlayer("Dev", "JEE Main · Gold", "DE", R.drawable.arena_avatar_student_08),
-    ArenaPlayer("Tara", "JEE Main · Silver", "TA", R.drawable.arena_avatar_student_09),
-    ArenaPlayer("Vivaan", "JEE Advanced · Gold", "VI", R.drawable.arena_avatar_student_10)
+    ArenaPlayer("Tara", "JEE Main · Silver", "TA", R.drawable.arena_avatar_student_10),
+    ArenaPlayer("Vivaan", "JEE Advanced · Gold", "VI", R.drawable.arena_avatar_student_11)
 )
 
 val duelPlayers = listOf(

@@ -158,9 +158,9 @@ private data class BattleLogEntry(
 )
 
 private val arenaElitePlayers = listOf(
-    ArenaElitePlayer("01", "ApexPredator", "2,450 XP", R.drawable.arena_avatar_apex, "12 win streak", Gold),
-    ArenaElitePlayer("02", "StormShadow", "2,120 XP", R.drawable.arena_avatar_storm, "8 win streak", Blue),
-    ArenaElitePlayer("03", "CyberViper", "1,980 XP", R.drawable.arena_avatar_cyber, "6 win streak", Moss)
+    ArenaElitePlayer("01", battlePlayers[6].name, "2,450 XP", battlePlayers[6].avatarRes, "12 win streak", Gold),
+    ArenaElitePlayer("02", battlePlayers[1].name, "2,120 XP", battlePlayers[1].avatarRes, "8 win streak", Blue),
+    ArenaElitePlayer("03", battlePlayers[2].name, "1,980 XP", battlePlayers[2].avatarRes, "6 win streak", Moss)
 )
 
 private val battleLogEntries = listOf(
