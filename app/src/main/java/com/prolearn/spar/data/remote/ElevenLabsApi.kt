@@ -41,7 +41,9 @@ data class VoiceSettings(
     val stability: Float = 0.42f,
     @SerialName("similarity_boost") val similarityBoost: Float = 0.82f,
     val style: Float = 0.16f,
-    @SerialName("use_speaker_boost") val useSpeakerBoost: Boolean = false
+    @SerialName("use_speaker_boost") val useSpeakerBoost: Boolean = false,
+    // ElevenLabs playback speed (0.7 slow … 1.2 fast). Null = provider default.
+    val speed: Float? = null
 )
 
 @Singleton
@@ -61,7 +63,8 @@ class ElevenLabsApi @Inject constructor(
         voiceId: String,
         previousText: String? = null,
         nextText: String? = null,
-        languageCode: String? = null
+        languageCode: String? = null,
+        speed: Float? = null
     ): Result<ByteArray> = runCatching {
         Log.d(TAG, "synthesizeBytes() voiceId=$voiceId text='${text.take(60)}'")
         val startedAt = System.currentTimeMillis()
@@ -80,6 +83,7 @@ class ElevenLabsApi @Inject constructor(
             setBody(
                 ElevenLabsRequest(
                     text = text,
+                    voiceSettings = VoiceSettings(speed = speed),
                     previousText = previousText?.takeLast(480),
                     nextText = nextText?.take(480),
                     languageCode = languageCode

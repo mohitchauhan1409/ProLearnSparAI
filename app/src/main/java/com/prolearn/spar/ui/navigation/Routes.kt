@@ -17,4 +17,5 @@ sealed class Routes(val route: String) {
     data object SessionReport : Routes("session_report")
     data object Progress : Routes("progress")
     data object Profile : Routes("profile")
+    data object VideoLessons : Routes("video_lessons")
 }

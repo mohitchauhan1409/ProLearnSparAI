@@ -109,7 +109,8 @@ fun HomeScreen(
     onNavigateToSparSetup: (String?) -> Unit,
     onNavigateToProgress: () -> Unit,
     onNavigateToProfile: () -> Unit,
-    onNavigateToArena: () -> Unit
+    onNavigateToArena: () -> Unit,
+    onNavigateToVideoLessons: () -> Unit
 ) {
     val viewModel: HomeViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     val streak by viewModel.streak.collectAsState()
@@ -159,6 +160,10 @@ fun HomeScreen(
                     totalSessions = totalSessions,
                     totalQuestions = totalQuestions
                 )
+            }
+
+            item {
+                VideoLessonsBanner(onClick = onNavigateToVideoLessons)
             }
 
             item {
@@ -864,6 +869,95 @@ private fun PremiumActionButton(
                 tint = Color.White,
                 modifier = Modifier.size(18.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun VideoLessonsBanner(onClick: () -> Unit) {
+    AnimatedHomeBlock(index = 1) {
+        val interaction = remember { MutableInteractionSource() }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(
+                    Brush.linearGradient(listOf(Ink, Moss))
+                )
+                .border(1.dp, GlassStroke, RoundedCornerShape(24.dp))
+                .clickable(
+                    interactionSource = interaction,
+                    indication = null,
+                    onClick = onClick
+                )
+                .padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "AI Video Lessons",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontFamily = BricolageGrotesqueFamily
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(100))
+                            .background(Color.White.copy(alpha = 0.18f))
+                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            "NEW",
+                            fontSize = 9.sp,
+                            letterSpacing = 1.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontFamily = BricolageGrotesqueFamily
+                        )
+                    }
+                }
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    "Type any topic, get a narrated lesson",
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.82f),
+                    fontFamily = BricolageGrotesqueFamily
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Outlined.ArrowForward,
+                    contentDescription = null,
+                    tint = Ink,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }

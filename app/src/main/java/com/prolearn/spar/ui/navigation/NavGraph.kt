@@ -25,6 +25,7 @@ import com.prolearn.spar.ui.screens.report.SessionReportScreen
 import com.prolearn.spar.ui.screens.setup.SparSetupScreen
 import com.prolearn.spar.ui.screens.spar.LiveSparScreen
 import com.prolearn.spar.ui.screens.splash.SplashScreen
+import com.prolearn.spar.ui.screens.video.VideoGeneratorScreen
 
 @Composable
 fun ProLearnNavGraph(navController: NavHostController) {
@@ -104,7 +105,17 @@ fun ProLearnNavGraph(navController: NavHostController) {
                         launchSingleTop = true
                         restoreState = true
                     }
+                },
+                onNavigateToVideoLessons = {
+                    navController.navigate(Routes.VideoLessons.route)
                 }
+            )
+        }
+
+        // ─── Video Lessons ────────────────────────────────────────────────────
+        composable(Routes.VideoLessons.route) {
+            VideoGeneratorScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -279,6 +290,7 @@ private fun routeDepth(route: String?): Int {
         Routes.Arena.route -> 11
         Routes.Profile.route -> 12
         Routes.Progress.route -> 13
+        Routes.VideoLessons.route -> 14
         Routes.SparSetup.route.substringBefore("?") -> 20
         Routes.LiveSpar.route -> 21
         Routes.SessionReport.route -> 22

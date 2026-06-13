@@ -52,6 +52,12 @@ android {
             "ELEVENLABS_API_KEY",
             "\"${localProps.getProperty("ELEVENLABS_API_KEY", "")}\""
         )
+
+        buildConfigField(
+            "String",
+            "ANTHROPIC_API_KEY",
+            "\"${localProps.getProperty("ANTHROPIC_API_KEY", "")}\""
+        )
     }
 
 

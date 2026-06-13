@@ -23,6 +23,7 @@ class AudioPlaybackService @Inject constructor(
     private var mediaPlayer: MediaPlayer? = null
     private var levelJob: Job? = null
     private var currentAudioFile: File? = null
+    private var levelCallback: ((Float) -> Unit)? = null
     private val scope = CoroutineScope(Dispatchers.Main)
 
     fun playAudio(
@@ -36,6 +37,7 @@ class AudioPlaybackService @Inject constructor(
         val startedAt = System.currentTimeMillis()
         Log.i(VOICE_TAG, "playback_prepare_start bytes=${bytes.size}")
         stop()
+        levelCallback = onLevelUpdate
 
         val file = try {
             File.createTempFile("tts_", ".mp3", context.cacheDir).also {
@@ -109,11 +111,44 @@ class AudioPlaybackService @Inject constructor(
 
     fun isPlaying(): Boolean = mediaPlayer?.isPlaying == true
 
+    /** Pause the current clip without releasing it (position is preserved). */
+    fun pause() {
+        val player = mediaPlayer ?: return
+        try {
+            if (player.isPlaying) {
+                player.pause()
+                Log.d(TAG, "pause() at ${player.currentPosition}ms")
+            }
+        } catch (e: IllegalStateException) {
+            Log.e(TAG, "pause() failed", e)
+        }
+        levelJob?.cancel()
+    }
+
+    /** Resume a paused clip and restart level updates for the speaking animation. */
+    fun resume() {
+        val player = mediaPlayer ?: return
+        try {
+            player.start()
+            Log.d(TAG, "resume() at ${player.currentPosition}ms")
+            levelCallback?.let { startLevelUpdates(it) }
+        } catch (e: IllegalStateException) {
+            Log.e(TAG, "resume() failed", e)
+        }
+    }
+
+    fun currentPositionMs(): Int = try {
+        mediaPlayer?.currentPosition ?: 0
+    } catch (e: IllegalStateException) {
+        0
+    }
+
     fun stop() {
         Log.d(TAG, "stop() called")
         Log.d(VOICE_TAG, "playback_stop_requested mediaPlaying=${mediaPlayer?.isPlaying == true}")
         levelJob?.cancel()
         levelJob = null
+        levelCallback = null
         releasePlayer()
         deleteCurrentAudioFile()
     }
