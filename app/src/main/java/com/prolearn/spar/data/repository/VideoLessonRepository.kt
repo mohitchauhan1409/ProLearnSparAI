@@ -53,4 +53,23 @@ class VideoLessonRepository @Inject constructor(
 
         lesson to playable
     }
+
+    /** Answer a live doubt, grounded in the lesson and the scene the student is on. */
+    suspend fun answerDoubt(
+        lesson: VideoLesson,
+        sceneIndex: Int,
+        topic: String,
+        question: String
+    ): Result<String> {
+        val currently = lesson.scenes.getOrNull(sceneIndex)?.let {
+            "${it.heading} — ${it.narration}"
+        } ?: lesson.title
+        return claudeApi.answerDoubt(
+            teacherName = lesson.teacherName,
+            lessonTitle = lesson.title,
+            topic = topic,
+            currentlyLearning = currently,
+            question = question
+        )
+    }
 }

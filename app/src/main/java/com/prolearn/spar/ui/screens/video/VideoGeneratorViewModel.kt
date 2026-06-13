@@ -18,6 +18,8 @@ import javax.inject.Inject
 
 enum class GenPhase { IDLE, SCRIPTING, VOICING, READY, ERROR }
 
+data class DoubtMessage(val fromUser: Boolean, val text: String)
+
 data class VideoUiState(
     val phase: GenPhase = GenPhase.IDLE,
     val topic: String = "",
@@ -34,7 +36,12 @@ data class VideoUiState(
     /** Per-line write duration (ms) for the current scene — paces the chalk writing to speech. */
     val lineDurations: List<Int> = emptyList(),
     val sceneDurationMs: Int = 0,
-    val finished: Boolean = false
+    val finished: Boolean = false,
+    val started: Boolean = false,
+    // doubt assistant
+    val doubtOpen: Boolean = false,
+    val doubtLoading: Boolean = false,
+    val doubtMessages: List<DoubtMessage> = emptyList()
 ) {
     val sceneCount: Int get() = scenes.size
 }
@@ -118,7 +125,57 @@ class VideoGeneratorViewModel @Inject constructor(
     }
 
     fun start() {
-        if (_uiState.value.scenes.isNotEmpty()) playScene(0)
+        if (_uiState.value.scenes.isNotEmpty()) {
+            _uiState.update { it.copy(started = true) }
+            playScene(0)
+        }
+    }
+
+    // ─── Doubt assistant ──────────────────────────────────────────────────────
+
+    /** Open the doubt sheet and pause the lesson while it's open. */
+    fun openDoubt() {
+        if (_uiState.value.isPlaying) pause()
+        _uiState.update { it.copy(doubtOpen = true) }
+    }
+
+    /** Close the sheet. The lesson stays paused — the student presses play to resume. */
+    fun closeDoubt() {
+        _uiState.update { it.copy(doubtOpen = false) }
+    }
+
+    fun askDoubt(question: String) {
+        val q = question.trim()
+        val s = _uiState.value
+        val lesson = s.lesson ?: return
+        if (q.isEmpty() || s.doubtLoading) return
+
+        _uiState.update {
+            it.copy(
+                doubtMessages = it.doubtMessages + DoubtMessage(fromUser = true, text = q),
+                doubtLoading = true
+            )
+        }
+        viewModelScope.launch {
+            repository.answerDoubt(lesson, s.currentScene, s.topic, q)
+                .onSuccess { answer ->
+                    _uiState.update {
+                        it.copy(
+                            doubtMessages = it.doubtMessages + DoubtMessage(false, answer),
+                            doubtLoading = false
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    _uiState.update {
+                        it.copy(
+                            doubtMessages = it.doubtMessages +
+                                DoubtMessage(false, "Sorry, I couldn't answer that right now. Please try again."),
+                            doubtLoading = false
+                        )
+                    }
+                }
+        }
     }
 
     fun next() {

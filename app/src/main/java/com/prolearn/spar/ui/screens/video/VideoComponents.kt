@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,8 +35,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -110,11 +113,16 @@ internal fun Chalkboard(
             )
 
             Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp)) {
+                val boardScroll = rememberScrollState()
+                // Follow the writing — keep the newest chalk line in view.
+                LaunchedEffect(revealedLines, sceneKey) {
+                    boardScroll.animateScrollTo(boardScroll.maxValue)
+                }
                 Column(
                     Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(boardScroll)
                 ) {
                     // scene-type tag
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -214,11 +222,17 @@ internal fun Chalkboard(
                         }
                     }
 
-                    // diagram
+                    // diagram — drawn live, node by node, as the explanation reaches it
                     scene.diagram?.let { d ->
                         if (d.isPresent) {
-                            Spacer(Modifier.height(20.dp))
-                            ChalkDiagram(d, accent.color, sceneKey)
+                            val totalLines = scene.lines.size.coerceAtLeast(1)
+                            val frac = (revealedLines.toFloat() / totalLines).coerceIn(0f, 1f)
+                            val revealedNodes = kotlin.math.ceil(d.nodes.size * frac)
+                                .toInt().coerceIn(0, d.nodes.size)
+                            if (revealedNodes >= 1) {
+                                Spacer(Modifier.height(20.dp))
+                                ChalkDiagram(d, accent.color, sceneKey, revealedNodes)
+                            }
                         }
                     }
 
@@ -282,33 +296,53 @@ private fun ChalkWriteText(
 // ── Diagrams ────────────────────────────────────────────────────────────────
 
 @Composable
-private fun ChalkDiagram(diagram: SceneDiagram, color: Color, sceneKey: Int) {
-    val appear = remember(sceneKey) { Animatable(0f) }
-    LaunchedEffect(sceneKey) { appear.animateTo(1f, tween(550)) }
+private fun ChalkDiagram(diagram: SceneDiagram, color: Color, sceneKey: Int, revealedNodes: Int) {
+    val type = DiagramType.normalize(diagram.type)
+    val nodes = diagram.nodes
+    val allShown = revealedNodes >= nodes.size
 
     Column(
         Modifier
             .fillMaxWidth()
-            .graphicsLayer {
-                alpha = appear.value
-                translationY = (1f - appear.value) * 24f
-            }
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.White.copy(alpha = 0.04f))
-            .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-            .padding(16.dp),
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.Black.copy(alpha = 0.18f))
+            .border(1.dp, color.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+            .padding(horizontal = 16.dp, vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        val type = DiagramType.normalize(diagram.type)
-        when (type) {
-            DiagramType.PARTS -> PartsDiagram(diagram.nodes, color)
-            else -> FlowOrCycleDiagram(diagram.nodes, color, isCycle = type == DiagramType.CYCLE)
+        if (type == DiagramType.PARTS) {
+            // Title (first node) + components
+            if (revealedNodes >= 1) AnimatedNode(nodes[0], color, sceneKey, 0, emphasised = true)
+            if (revealedNodes >= 2) {
+                Spacer(Modifier.height(12.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    for (i in 1 until revealedNodes) {
+                        AnimatedPart(nodes[i], color, sceneKey, i)
+                    }
+                }
+            }
+        } else {
+            for (i in 0 until revealedNodes) {
+                if (i > 0) DrawConnector(color)
+                AnimatedNode(nodes[i], color, sceneKey, i)
+            }
+            if (type == DiagramType.CYCLE && allShown && nodes.size > 1) {
+                DrawConnector(color)
+                Text(
+                    "↺ repeats from the start",
+                    fontSize = 18.sp,
+                    color = color,
+                    fontFamily = ChalkFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
-        if (!diagram.caption.isNullOrBlank()) {
-            Spacer(Modifier.height(12.dp))
+
+        if (allShown && !diagram.caption.isNullOrBlank()) {
+            Spacer(Modifier.height(14.dp))
             Text(
                 diagram.caption!!,
-                fontSize = 16.sp,
+                fontSize = 17.sp,
                 color = ChalkDim.copy(alpha = 0.85f),
                 textAlign = TextAlign.Center,
                 fontFamily = ChalkFontFamily
@@ -317,63 +351,26 @@ private fun ChalkDiagram(diagram: SceneDiagram, color: Color, sceneKey: Int) {
     }
 }
 
+/** A diagram node box that "pops" in when first drawn. */
 @Composable
-private fun FlowOrCycleDiagram(nodes: List<String>, color: Color, isCycle: Boolean) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        nodes.forEachIndexed { i, node ->
-            DiagramNode(node, color)
-            if (i < nodes.size - 1) ChalkArrow(color)
-        }
-        if (isCycle && nodes.size > 1) {
-            ChalkArrow(color)
-            Text(
-                "↺ back to the start",
-                fontSize = 17.sp,
-                color = color,
-                fontFamily = ChalkFontFamily,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-@Composable
-private fun PartsDiagram(nodes: List<String>, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        if (nodes.isNotEmpty()) {
-            DiagramNode(nodes.first(), color, emphasised = true)
-            if (nodes.size > 1) {
-                Spacer(Modifier.height(10.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    nodes.drop(1).forEach { part ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("•", fontSize = 20.sp, color = color, fontFamily = ChalkFontFamily)
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                part,
-                                fontSize = 19.sp,
-                                color = ChalkDim,
-                                fontFamily = ChalkFontFamily
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DiagramNode(label: String, color: Color, emphasised: Boolean = false) {
+private fun AnimatedNode(label: String, color: Color, sceneKey: Int, index: Int, emphasised: Boolean = false) {
+    val a = remember("$sceneKey-$index") { Animatable(0f) }
+    LaunchedEffect("$sceneKey-$index") { a.animateTo(1f, tween(380)) }
     Box(
         Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .border(if (emphasised) 2.dp else 1.5.dp, color.copy(alpha = 0.8f), RoundedCornerShape(10.dp))
-            .padding(horizontal = 16.dp, vertical = 9.dp)
+            .graphicsLayer {
+                alpha = a.value
+                val s = 0.85f + 0.15f * a.value
+                scaleX = s; scaleY = s
+            }
+            .clip(RoundedCornerShape(12.dp))
+            .background(color.copy(alpha = 0.12f))
+            .border(if (emphasised) 2.dp else 1.5.dp, color.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 18.dp, vertical = 10.dp)
     ) {
         Text(
             label,
-            fontSize = if (emphasised) 21.sp else 19.sp,
+            fontSize = if (emphasised) 23.sp else 20.sp,
             color = if (emphasised) color else Chalk,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
@@ -383,15 +380,43 @@ private fun DiagramNode(label: String, color: Color, emphasised: Boolean = false
 }
 
 @Composable
-private fun ChalkArrow(color: Color) {
-    Text(
-        "↓",
-        fontSize = 20.sp,
-        color = color.copy(alpha = 0.9f),
-        fontFamily = ChalkFontFamily,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(vertical = 2.dp)
-    )
+private fun AnimatedPart(label: String, color: Color, sceneKey: Int, index: Int) {
+    val a = remember("$sceneKey-p$index") { Animatable(0f) }
+    LaunchedEffect("$sceneKey-p$index") { a.animateTo(1f, tween(320)) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.graphicsLayer {
+            alpha = a.value
+            translationX = (1f - a.value) * -20f
+        }
+    ) {
+        Text("•", fontSize = 21.sp, color = color, fontFamily = ChalkFontFamily, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(9.dp))
+        Text(label, fontSize = 20.sp, color = ChalkDim, fontFamily = ChalkFontFamily)
+    }
+}
+
+/** A chalk arrow that draws itself downward between two diagram nodes. */
+@Composable
+private fun DrawConnector(color: Color) {
+    val draw = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { draw.animateTo(1f, tween(340)) }
+    Canvas(
+        Modifier
+            .height(26.dp)
+            .width(44.dp)
+            .padding(vertical = 2.dp)
+    ) {
+        val cx = size.width / 2f
+        val stroke = 3.dp.toPx()
+        val endY = size.height * draw.value
+        drawLine(color, Offset(cx, 0f), Offset(cx, endY), strokeWidth = stroke, cap = StrokeCap.Round)
+        if (draw.value > 0.8f) {
+            val ah = 7.dp.toPx()
+            drawLine(color, Offset(cx, endY), Offset(cx - ah, endY - ah), strokeWidth = stroke, cap = StrokeCap.Round)
+            drawLine(color, Offset(cx, endY), Offset(cx + ah, endY - ah), strokeWidth = stroke, cap = StrokeCap.Round)
+        }
+    }
 }
 
 @Composable

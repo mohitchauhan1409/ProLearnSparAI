@@ -25,11 +25,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,17 +39,22 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -65,6 +72,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.prolearn.spar.ui.components.ui.ProLearnButton
 import com.prolearn.spar.ui.components.ui.ProLearnTextField
 import com.prolearn.spar.ui.theme.BricolageGrotesqueFamily
+import com.prolearn.spar.ui.theme.ChalkFontFamily
 import com.prolearn.spar.ui.theme.ProLearnColors
 
 private val PageBg = Color(0xFFF8FAF7)
@@ -360,8 +368,20 @@ private fun PlayerStage(
     viewModel: VideoGeneratorViewModel,
     onBack: () -> Unit
 ) {
-    // Auto-start playback the first time we land on a ready lesson.
-    LaunchedEffect(state.lesson) { viewModel.start() }
+    // The doubt sheet can open over either the poster or the player.
+    if (state.doubtOpen) {
+        DoubtSheet(state = state, viewModel = viewModel)
+    }
+
+    // Don't auto-play — show a poster and let the student press Start.
+    if (!state.started) {
+        StartPoster(
+            state = state,
+            onStart = { viewModel.start() },
+            onClose = { viewModel.reset(); onBack() }
+        )
+        return
+    }
 
     val scene = state.scenes.getOrNull(state.currentScene)?.scene
     val accent = remember(state.currentScene) { accentFor(scene?.visual ?: "concept") }
@@ -417,20 +437,28 @@ private fun PlayerStage(
 
         Spacer(Modifier.height(8.dp))
 
-        // Chalkboard stage — the lesson is written out here in chalk
-        if (scene != null) {
-            Chalkboard(
-                scene = scene,
-                sceneKey = state.currentScene,
-                revealedLines = state.revealedLines,
-                lineDurations = state.lineDurations,
-                accent = accent,
+        // Chalkboard stage, with the floating "ask a doubt" button
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            if (scene != null) {
+                Chalkboard(
+                    scene = scene,
+                    sceneKey = state.currentScene,
+                    revealedLines = state.revealedLines,
+                    lineDurations = state.lineDurations,
+                    accent = accent,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            DoubtButton(
+                onClick = { viewModel.openDoubt() },
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 12.dp, bottom = 12.dp)
             )
-        } else {
-            Spacer(Modifier.weight(1f))
         }
 
         Spacer(Modifier.height(16.dp))
@@ -507,6 +535,262 @@ private fun PlayerStage(
             )
         }
         Spacer(Modifier.height(12.dp).navigationBarsPadding())
+    }
+}
+
+// ─── Start poster ─────────────────────────────────────────────────────────────
+
+@Composable
+private fun StartPoster(
+    state: VideoUiState,
+    onStart: () -> Unit,
+    onClose: () -> Unit
+) {
+    val boardTop = Color(0xFF2C3D33)
+    val boardBottom = Color(0xFF1E2A23)
+    val chalk = Color(0xFFF1EEDF)
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(horizontal = 20.dp)
+    ) {
+        TopBar(title = "Your lesson is ready", onBack = onClose)
+        Spacer(Modifier.weight(0.7f))
+
+        // Chalkboard poster
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xFF7A5230), Color(0xFF4A3015))))
+                .padding(10.dp)
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Brush.verticalGradient(listOf(boardTop, boardBottom)))
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "Today's lesson",
+                    fontSize = 12.sp,
+                    letterSpacing = 2.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = chalk.copy(alpha = 0.6f),
+                    fontFamily = BricolageGrotesqueFamily
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    state.lesson?.title ?: state.topic,
+                    fontSize = 34.sp,
+                    lineHeight = 38.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = chalk,
+                    textAlign = TextAlign.Center,
+                    fontFamily = ChalkFontFamily
+                )
+                state.lesson?.subtitle?.takeIf { it.isNotBlank() }?.let {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        it,
+                        fontSize = 20.sp,
+                        lineHeight = 25.sp,
+                        color = chalk.copy(alpha = 0.85f),
+                        textAlign = TextAlign.Center,
+                        fontFamily = ChalkFontFamily
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "${state.sceneCount} chalkboards • taught by ${state.lesson?.teacherName ?: "your teacher"}",
+                    fontSize = 12.sp,
+                    color = chalk.copy(alpha = 0.55f),
+                    fontFamily = BricolageGrotesqueFamily
+                )
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+        ProLearnButton(text = "Start lesson", onClick = onStart)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Tap the “?” anytime during the lesson to ask a doubt.",
+            fontSize = 12.sp,
+            color = ProLearnColors.Muted,
+            textAlign = TextAlign.Center,
+            fontFamily = BricolageGrotesqueFamily,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.weight(1f))
+    }
+}
+
+// ─── Ask-a-doubt ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun DoubtButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val interaction = remember { MutableInteractionSource() }
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+        Box(
+            Modifier
+                .size(54.dp)
+                .clip(CircleShape)
+                .background(Ink)
+                .border(2.dp, Color.White, CircleShape)
+                .clickable(interactionSource = interaction, indication = null, onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Forum,
+                contentDescription = "Ask a doubt",
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Spacer(Modifier.height(5.dp))
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(100))
+                .background(Ink.copy(alpha = 0.85f))
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+        ) {
+            Text("Ask", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color.White, fontFamily = BricolageGrotesqueFamily)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DoubtSheet(state: VideoUiState, viewModel: VideoGeneratorViewModel) {
+    val sheetState = rememberModalBottomSheetState()
+    var input by remember { mutableStateOf("") }
+    val scroll = rememberScrollState()
+    val teacher = state.lesson?.teacherName ?: "your teacher"
+
+    LaunchedEffect(state.doubtMessages.size, state.doubtLoading) {
+        scroll.animateScrollTo(scroll.maxValue)
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = { viewModel.closeDoubt() },
+        sheetState = sheetState,
+        containerColor = Color.White
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Ask $teacher",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Ink,
+                    fontFamily = BricolageGrotesqueFamily
+                )
+                Spacer(Modifier.weight(1f))
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(100))
+                        .background(ProLearnColors.Surface)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        "lesson paused",
+                        fontSize = 11.sp,
+                        color = ProLearnColors.MutedDark,
+                        fontFamily = BricolageGrotesqueFamily
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 120.dp, max = 380.dp)
+                    .verticalScroll(scroll),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (state.doubtMessages.isEmpty() && !state.doubtLoading) {
+                    Text(
+                        "Stuck on something? Ask any doubt about this lesson and $teacher will explain it simply.",
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        color = ProLearnColors.MutedDark,
+                        fontFamily = BricolageGrotesqueFamily
+                    )
+                }
+                state.doubtMessages.forEach { DoubtBubble(it) }
+                if (state.doubtLoading) {
+                    DoubtBubble(DoubtMessage(fromUser = false, text = "$teacher is thinking…"))
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ProLearnTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    placeholder = "Type your doubt…",
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(10.dp))
+                val sendInteraction = remember { MutableInteractionSource() }
+                val canSend = input.trim().isNotEmpty() && !state.doubtLoading
+                Box(
+                    Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .background(if (canSend) Ink else ProLearnColors.Disabled)
+                        .clickable(interactionSource = sendInteraction, indication = null, enabled = canSend) {
+                            viewModel.askDoubt(input)
+                            input = ""
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("↑", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White, fontFamily = BricolageGrotesqueFamily)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+        }
+    }
+}
+
+@Composable
+private fun DoubtBubble(message: DoubtMessage) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = if (message.fromUser) Arrangement.End else Arrangement.Start
+    ) {
+        Box(
+            Modifier
+                .widthIn(max = 290.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(if (message.fromUser) Ink else ProLearnColors.Surface)
+                .then(
+                    if (message.fromUser) Modifier
+                    else Modifier.border(1.dp, ProLearnColors.Border, RoundedCornerShape(16.dp))
+                )
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            Text(
+                message.text,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                color = if (message.fromUser) Color.White else ProLearnColors.Black,
+                fontFamily = BricolageGrotesqueFamily
+            )
+        }
     }
 }
 

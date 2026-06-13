@@ -104,6 +104,53 @@ class ClaudeApi @Inject constructor(
         sanitize(lesson, topic, teacherName)
     }
 
+    /** Answer a student's live doubt about the lesson, in a warm teacher voice. */
+    suspend fun answerDoubt(
+        teacherName: String,
+        lessonTitle: String,
+        topic: String,
+        currentlyLearning: String,
+        question: String
+    ): Result<String> = runCatching {
+        require(BuildConfig.ANTHROPIC_API_KEY.isNotBlank()) { "ANTHROPIC_API_KEY is missing" }
+        val system = """
+You are $teacherName, a warm, patient teacher helping a complete beginner during a
+lesson titled "$lessonTitle" (topic: $topic). The student just paused to ask a doubt.
+Answer ONLY their question, simply and kindly, like a real teacher talking out loud.
+Assume no prior knowledge, use plain everyday words, give a tiny example or analogy if
+it helps, and keep it short — 2 to 4 sentences. No markdown, no lists, no emoji.
+        """.trimIndent()
+        val user = """
+Right now I'm learning: "$currentlyLearning"
+
+My question: $question
+        """.trimIndent()
+
+        val response = client.post(MESSAGES_URL) {
+            header("x-api-key", BuildConfig.ANTHROPIC_API_KEY)
+            header("anthropic-version", ANTHROPIC_VERSION)
+            contentType(ContentType.Application.Json)
+            setBody(
+                ClaudeRequest(
+                    model = MODEL,
+                    maxTokens = 500,
+                    system = system,
+                    messages = listOf(ClaudeMessage(role = "user", content = user))
+                )
+            )
+        }
+        val bodyText = response.bodyAsText()
+        if (response.status.value != 200) {
+            throw IllegalStateException("Claude HTTP ${response.status.value}: ${bodyText.take(200)}")
+        }
+        val parsed = json.decodeFromString<ClaudeResponse>(bodyText)
+        parsed.content
+            ?.firstOrNull { it.type == "text" && !it.text.isNullOrBlank() }
+            ?.text
+            ?.trim()
+            ?: throw IllegalStateException("No answer returned")
+    }
+
     /** Guard against an empty or malformed lesson before we hand it to playback. */
     private fun sanitize(lesson: VideoLesson, topic: String, fallbackTeacher: String): VideoLesson {
         val scenes = lesson.scenes
